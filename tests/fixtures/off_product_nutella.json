@@ -1,0 +1,20 @@
+{
+ "status": 1,
+ "code": "3017620422003",
+ "product": {
+  "code": "3017620422003",
+  "product_name": "Nutella",
+  "product_name_es": "Nutella",
+  "brands": "Nutella, Ferrero",
+  "serving_size": null,
+  "serving_quantity": null,
+  "nutriments": {
+   "energy-kcal_100g": 539,
+   "energy-kj_100g": 2252,
+   "energy_100g": 2252,
+   "proteins_100g": 6.3,
+   "carbohydrates_100g": 57.5,
+   "fat_100g": 30.9
+  }
+ }
+}
