@@ -1,0 +1,11 @@
+# Dos temas (claro/oscuro) para que la app siga la preferencia del sistema.
+# Con una sección [theme] plana, Streamlit se queda en claro aunque el sistema esté en oscuro.
+[theme.light]
+primaryColor = "#2a78d6"
+
+[theme.dark]
+primaryColor = "#3987e5"
+
+[browser]
+# La app es local: sin telemetría de Streamlit.
+gatherUsageStats = false

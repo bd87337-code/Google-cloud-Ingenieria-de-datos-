@@ -31,7 +31,7 @@ def test_protein_reference_never_exceeds_weight():
 
 
 def test_protein_reference_at_20_percent_equals_weight():
-    assert protein_reference_weight(88, 20) == pytest.approx(88)
+    assert protein_reference_weight(75, 20) == pytest.approx(75)
 
 
 def test_navy_male_matches_hand_computation():

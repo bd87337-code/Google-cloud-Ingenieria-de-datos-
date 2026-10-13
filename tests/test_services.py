@@ -181,3 +181,22 @@ def test_tdee_timeline_combines_formula_and_data(repo, sample_profile):
 
 def test_tdee_timeline_without_profile_is_empty(repo):
     assert services.tdee_timeline(repo, "2026-03-01", "2026-03-10").empty
+
+
+def test_weekly_summary_adds_target_and_counts_only_valid_days(repo, sample_profile):
+    repo.save_profile(**sample_profile)
+    a = repo.add_food("A", 100, 10, 10, 1)
+    repo.set_target("2026-03-01", 2200, 150, 250, 70, "formula")
+    repo.add_log("2026-03-02", "lunch", a, 2000)   # lunes 2
+    repo.add_log("2026-03-03", "lunch", a, 2400)
+    repo.add_log("2026-03-04", "lunch", a, 300)    # incompleto: no cuenta
+    f = services.daily_frame(repo, "2026-03-02", "2026-03-08", today=date(2026, 4, 1))
+    w = services.weekly_summary(f)
+    assert len(w) == 1
+    assert w.loc[0, "mean_kcal"] == pytest.approx(2200) and w.loc[0, "valid_days"] == 2
+    assert w.loc[0, "target_kcal"] == pytest.approx(2200)
+
+
+def test_weekly_summary_empty(repo):
+    f = services.daily_frame(repo, "2026-03-02", "2026-03-08", today=date(2026, 4, 1))
+    assert services.weekly_summary(f).empty

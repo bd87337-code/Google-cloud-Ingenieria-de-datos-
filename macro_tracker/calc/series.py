@@ -45,7 +45,7 @@ def valid_food_day_mask(
     llegue al umbral, pero solo si tiene alguna comida registrada (un día en NaN
     nunca es válido).
     """
-    mask = kcal.fillna(0.0) >= min_kcal
+    mask = kcal.astype(float).fillna(0.0) >= min_kcal
     if overrides:
         for day, forced in overrides.items():
             ts = pd.Timestamp(day).normalize()

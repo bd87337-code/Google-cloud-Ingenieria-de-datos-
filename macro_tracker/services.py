@@ -17,7 +17,7 @@ from macro_tracker.calc.body_comp import (
     lean_mass_series,
     protein_reference_weight,
 )
-from macro_tracker.calc.series import daily_index, moving_average, valid_food_day_mask
+from macro_tracker.calc.series import daily_index, moving_average, valid_food_day_mask, weekly_intake
 from macro_tracker.calc.targets import (
     CalorieTarget,
     MacroTargets,
@@ -171,13 +171,13 @@ def daily_frame(
     body = body_all.reindex(idx)
     totals = totals_all.reindex(idx)
     frame = pd.DataFrame(index=idx)
-    frame["weight_kg"] = body["weight_kg"]
+    frame["weight_kg"] = body["weight_kg"].astype(float)
     frame["weight_ma7"] = moving_average(frame["weight_kg"])
-    frame["body_fat_pct"] = body["body_fat_pct"]
+    frame["body_fat_pct"] = body["body_fat_pct"].astype(float)
     frame["bf_daily"] = interpolate_body_fat(frame["body_fat_pct"])
     frame["lean_mass_kg"] = lean_mass_series(frame["weight_ma7"], frame["bf_daily"])
     for col in ("kcal", "protein_g", "carbs_g", "fat_g"):
-        frame[col] = totals[col]
+        frame[col] = totals[col].astype(float)
 
     overrides = repo.day_status_map(end=end)
     valid = valid_food_day_mask(frame["kcal"], min_kcal, overrides)
@@ -191,7 +191,8 @@ def daily_frame(
         for col in ("kcal", "protein_g", "carbs_g", "fat_g"):
             frame[f"target_{col}"] = float("nan")
     else:
-        spread = targets.reindex(targets.index.union(idx)).ffill().reindex(idx)
+        numeric = targets[["kcal", "protein_g", "carbs_g", "fat_g"]].astype(float)
+        spread = numeric.reindex(numeric.index.union(idx)).ffill().reindex(idx)
         for col in ("kcal", "protein_g", "carbs_g", "fat_g"):
             frame[f"target_{col}"] = spread[col]
     return frame.loc[start:end]
@@ -262,3 +263,13 @@ def _history_start(repo: Repository, fallback: pd.Timestamp) -> pd.Timestamp:
         if not d.empty:
             dates.append(d.index.min())
     return min([fallback, *dates])
+
+
+def weekly_summary(frame: pd.DataFrame) -> pd.DataFrame:
+    """Calorías promedio por semana (solo días válidos) con la meta promedio de esa semana."""
+    weekly = weekly_intake(frame["kcal_valid"])
+    if weekly.empty:
+        return weekly.assign(target_kcal=pd.Series(dtype=float))
+    target = frame["target_kcal"].groupby(frame.index.to_period("W-SUN")).mean()
+    weekly["target_kcal"] = [target.get(pd.Period(ws, freq="W-SUN"), float("nan")) for ws in weekly["week_start"]]
+    return weekly
