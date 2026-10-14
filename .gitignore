@@ -8,3 +8,4 @@ data/
 *.db-wal
 *.db-shm
 .streamlit/secrets.toml
+mobile/tests/.cdn/

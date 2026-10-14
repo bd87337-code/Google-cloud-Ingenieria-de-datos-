@@ -1,0 +1,1614 @@
+<title>Macro Tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Diseño: herramienta de seguimiento para el celular. Neutros fríos con tinte verdoso, un acento azul
+   (el mismo azul de las series), cifras grandes en la cara de títulos, tarjetas solo donde agrupan. */
+:root {
+  --bg: #f1f4f3; --surface: #ffffff; --surface2: #e8edeb; --ink: #121719; --ink2: #3f4a4f; --muted: #5a666b;
+  --line: #d9e0de; --accent: #2a78d6; --accent-ink: #1c5cab; --on-accent: #ffffff;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --warn-bg: #fff4d6; --warn-ink: #6b4500; --info-bg: #e4eefb; --info-ink: #17467f; --good-ink: #006300; --bad-ink: #a12a2a; --bad-bg: #fde7e7;
+  --scrim: rgba(10, 16, 18, .45); --shadow: 0 -8px 30px rgba(10, 16, 18, .18);
+  --font-body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --r: 14px; --r-sm: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1213; --surface: #171c1e; --surface2: #21282b; --ink: #eceeed; --ink2: #b9c2c5; --muted: #93a0a5;
+    --line: #2a3236; --accent: #3987e5; --accent-ink: #7db3f2; --on-accent: #07121f;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --warn-bg: #3a2f10; --warn-ink: #f0c668; --info-bg: #14283f; --info-ink: #9cc6f5; --good-ink: #4fd04f; --bad-ink: #f19a9a; --bad-bg: #3b1d1d;
+    --scrim: rgba(0, 0, 0, .6); --shadow: 0 -8px 30px rgba(0, 0, 0, .5); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1213; --surface: #171c1e; --surface2: #21282b; --ink: #eceeed; --ink2: #b9c2c5; --muted: #93a0a5;
+  --line: #2a3236; --accent: #3987e5; --accent-ink: #7db3f2; --on-accent: #07121f;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --warn-bg: #3a2f10; --warn-ink: #f0c668; --info-bg: #14283f; --info-ink: #9cc6f5; --good-ink: #4fd04f; --bad-ink: #f19a9a; --bad-bg: #3b1d1d;
+  --scrim: rgba(0, 0, 0, .6); --shadow: 0 -8px 30px rgba(0, 0, 0, .5); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--ink); font: 400 15px/1.45 var(--font-body); padding-inline: 16px; padding-block: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3, p { margin: 0; }
+h2 { font: 700 19px/1.2 var(--font-display); letter-spacing: -.01em; }
+h3 { font: 600 15px/1.3 var(--font-body); }
+small, .small { font-size: 13px; }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+.wrap { max-width: 640px; margin-inline: auto; }
+
+/* ---- estructura ---- */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px 6px; max-width: 640px; margin-inline: auto; }
+.brand { font: 700 18px/1 var(--font-display); letter-spacing: -.02em; }
+.sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--s3); }
+.sync[data-state="local"]::before { background: var(--s4); }
+.sync[data-state="saving"]::before { background: var(--s1); }
+main { max-width: 640px; margin-inline: auto; padding-block: 8px 150px; display: flex; flex-direction: column; gap: 14px; min-height: 60vh; }
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(5, 1fr); padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); z-index: 20; }
+.tab { background: none; border: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; color: var(--muted);
+  font-size: 11px; font-weight: 500; min-height: 48px; cursor: pointer; border-radius: var(--r-sm); }
+.tab svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab[aria-selected="true"] { color: var(--accent-ink); }
+.tab[aria-selected="true"] svg { stroke-width: 2.3; }
+.tab:focus-visible, .btn:focus-visible, .row:focus-visible, .chip:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- bloques ---- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card.flat { background: transparent; border: 0; padding: 0; }
+.card-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.sub { color: var(--muted); font-size: 13px; }
+.notice { --n-bg: var(--info-bg); --n-ink: var(--info-ink); border-radius: var(--r-sm); padding: 11px 13px; font-size: 14px; display: flex; gap: 10px;
+  align-items: flex-start; background: var(--n-bg); color: var(--n-ink); }
+.notice::before { content: "i"; flex: none; width: 20px; height: 20px; border-radius: 50%; font: 700 12px/20px var(--font-body); text-align: center;
+  background: var(--n-ink); color: var(--n-bg); margin-top: 1px; }
+.notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.notice.warn { --n-bg: var(--warn-bg); --n-ink: var(--warn-ink); }
+.notice.warn::before { content: "!"; }
+.notice.bad { --n-bg: var(--bad-bg); --n-ink: var(--bad-ink); }
+.notice.bad::before { content: "×"; }
+.notice.good { --n-bg: var(--info-bg); --n-ink: var(--good-ink); }
+.notice.good::before { content: "✓"; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; text-align: center; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.danger { color: var(--bad-ink); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--accent-ink); }
+.btn.block { width: 100%; }
+.btn.sm { min-height: 38px; padding: 0 12px; font-size: 14px; }
+.btn[disabled] { opacity: .5; cursor: default; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn-row > .btn { flex: 1 1 140px; }
+.fab { position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 15; min-height: 52px; padding: 0 22px; border-radius: 26px;
+  box-shadow: 0 6px 20px rgba(10, 16, 18, .28); }
+
+/* ---- formularios ---- */
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field > label, .lbl { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.field .hint { font-size: 12.5px; color: var(--muted); }
+input[type="text"], input[type="number"], input[type="date"], input[type="search"], select, textarea {
+  width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); padding: 0 12px; font-size: 16px; }
+textarea { padding: 10px 12px; min-height: 76px; }
+input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 360px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface2); border-radius: var(--r-sm); padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; min-height: 40px; border-radius: 8px; font-weight: 600; color: var(--ink2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(10, 16, 18, .18); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 20px; min-height: 38px; padding: 0 14px; font-weight: 600; font-size: 14px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+details > summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; color: var(--ink2); list-style-position: inside; }
+
+/* ---- resumen del día ---- */
+.date-bar { display: flex; align-items: center; gap: 8px; }
+.date-bar .btn { min-width: 46px; padding: 0; }
+.date-label { flex: 1; text-align: center; font: 700 17px/1.2 var(--font-display); position: relative; min-height: 46px; display: flex; flex-direction: column; justify-content: center; }
+.date-label input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.kcal-hero { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.kcal-hero .big { font: 700 44px/1 var(--font-display); letter-spacing: -.03em; }
+.meter { height: 10px; border-radius: 5px; background: var(--surface2); overflow: hidden; }
+.meter > i { display: block; height: 100%; border-radius: 5px; background: var(--accent); min-width: 0; transition: width .25s; }
+.macro { display: grid; grid-template-columns: 118px 1fr auto; gap: 10px; align-items: center; font-size: 14px; }
+.macro .meter { height: 8px; }
+.macro b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.macro-name { display: flex; align-items: center; gap: 7px; }
+.dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+/* ---- listas ---- */
+.list { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 0; border-top: 1px solid var(--line);
+  background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left; cursor: pointer; }
+.list > .row:first-child { border-top: 0; }
+.row .main { min-width: 0; flex: 1; }
+.row .name { font-weight: 600; overflow-wrap: anywhere; }
+.row .meta { font-size: 13px; color: var(--muted); }
+.row .end { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.meal-head { display: flex; justify-content: space-between; align-items: baseline; }
+.tag { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: var(--surface2); color: var(--ink2); margin-left: 6px; vertical-align: 1px; }
+.tag.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.empty { text-align: center; padding: 22px 8px; color: var(--muted); display: flex; flex-direction: column; gap: 10px; align-items: center; }
+
+/* ---- progreso ---- */
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px; }
+.kpi .v { font: 700 24px/1.1 var(--font-display); letter-spacing: -.02em; margin-top: 2px; }
+.kpi .l { font-size: 12.5px; color: var(--muted); }
+.chart-box { position: relative; height: 240px; }
+.chart-box.tall { height: 330px; }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+th { color: var(--muted); font-weight: 600; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---- sheet / toast ---- */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 640px; max-height: 92%; overflow-y: auto; border-radius: 20px 20px 0 0; box-shadow: var(--shadow);
+  padding: 8px 16px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; overscroll-behavior: contain; }
+.sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 0; flex: none; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(138px + env(safe-area-inset-bottom, 0px)); z-index: 60; background: var(--ink); color: var(--bg);
+  padding: 11px 16px; border-radius: 22px; font-size: 14px; font-weight: 500; max-width: calc(100% - 32px); box-shadow: 0 6px 20px rgba(0, 0, 0, .3); }
+.toast[hidden] { display: none; }
+.spin { display: inline-block; width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2s; } .meter > i { transition: none; } }
+
+.fab.away { display: none; }
+
+</style>
+<header class="top"><span class="brand">Macro Tracker</span><span class="sync" id="sync" data-state="local" role="status">Cargando…</span></header>
+<main id="view" aria-live="polite"></main>
+<button class="btn primary fab" id="fab" type="button" hidden>+ Agregar alimento</button>
+<nav class="tabs" id="tabs" role="tablist" aria-label="Secciones"></nav>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+/* ===== CALC: cálculos puros (sin DOM ni almacenamiento). Port fiel de macro_tracker/calc y services.py ===== */
+const KCAL_PER_KG = 7700;
+const ACTIVITY_FACTORS = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 };
+const CFG = {
+  windowDays: 14, minFoodDays: 10, minWeighings: 8, minPerHalf: 3,
+  maxStepKcal: 250, noiseFloorKcal: 100, ciHigh: 250, ciMedium: 450,
+  maDays: 7, defaultMinValidKcal: 1000, proteinRefBf: 0.20,
+};
+
+/* ---------- fechas (ISO AAAA-MM-DD, sin zona horaria) ---------- */
+const DAY_MS = 86400000;
+function dayNum(iso) { const [y, m, d] = iso.split('-').map(Number); return Date.UTC(y, m - 1, d) / DAY_MS; }
+function isoOf(n) { return new Date(n * DAY_MS).toISOString().slice(0, 10); }
+function addDays(iso, n) { return isoOf(dayNum(iso) + n); }
+function todayIso() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function dateRange(startIso, endIso) {
+  const out = [];
+  for (let n = dayNum(startIso); n <= dayNum(endIso); n++) out.push(isoOf(n));
+  return out;
+}
+function ageOn(birthIso, onIso) {
+  const [by, bm, bd] = birthIso.split('-').map(Number), [oy, om, od] = onIso.split('-').map(Number);
+  let years = oy - by;
+  if (om < bm || (om === bm && od < bd)) years -= 1;
+  return years;
+}
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+
+/* ---------- gasto basal ---------- */
+function mifflin(weightKg, heightCm, age, sex) {
+  if (!(weightKg > 0) || !(heightCm > 0) || !(age > 0)) throw new Error('peso, estatura y edad deben ser positivos');
+  if (sex !== 'M' && sex !== 'F') throw new Error("sexo debe ser 'M' o 'F'");
+  return 10 * weightKg + 6.25 * heightCm - 5 * age + (sex === 'M' ? 5 : -161);
+}
+function checkBf(bf) { if (!(bf >= 3 && bf <= 60)) throw new Error('% de grasa fuera de rango [3, 60]'); }
+function katch(weightKg, bf) {
+  if (!(weightKg > 0)) throw new Error('peso debe ser positivo');
+  checkBf(bf);
+  return 370 + 21.6 * weightKg * (1 - bf / 100);
+}
+function estimateBmr(weightKg, heightCm, age, sex, bf = null, prefer = 'auto') {
+  if (bf != null && prefer === 'auto') return { kcal: katch(weightKg, bf), method: 'katch_mcardle' };
+  return { kcal: mifflin(weightKg, heightCm, age, sex), method: 'mifflin_st_jeor' };
+}
+
+/* ---------- composición corporal ---------- */
+function proteinRefWeight(weightKg, bf = null) {
+  if (bf == null) return weightKg;
+  checkBf(bf);
+  return Math.min(weightKg, (weightKg * (1 - bf / 100)) / (1 - CFG.proteinRefBf));
+}
+function navyBodyFat(sex, heightCm, neckCm, waistCm, hipCm = null) {
+  if (sex !== 'M' && sex !== 'F') throw new Error("sexo debe ser 'M' o 'F'");
+  if (!(heightCm > 0) || !(neckCm > 0) || !(waistCm > 0)) throw new Error('estatura, cuello y cintura deben ser positivos');
+  let density;
+  if (sex === 'M') {
+    const spread = waistCm - neckCm;
+    if (spread <= 0) throw new Error('la cintura debe ser mayor que el cuello');
+    density = 1.0324 - 0.19077 * Math.log10(spread) + 0.15456 * Math.log10(heightCm);
+  } else {
+    if (!(hipCm > 0)) throw new Error('las mujeres requieren la medida de cadera');
+    const spread = waistCm + hipCm - neckCm;
+    if (spread <= 0) throw new Error('cintura + cadera debe ser mayor que el cuello');
+    density = 1.29579 - 0.35004 * Math.log10(spread) + 0.221 * Math.log10(heightCm);
+  }
+  return 495 / density - 450;
+}
+
+/* ---------- metas ---------- */
+function activityFactor(level) {
+  if (!(level in ACTIVITY_FACTORS)) throw new Error('nivel de actividad desconocido: ' + level);
+  return ACTIVITY_FACTORS[level];
+}
+function goalAdjustment(goal, rate) {
+  if (!['maintain', 'gain', 'lose'].includes(goal)) throw new Error('objetivo desconocido: ' + goal);
+  if (rate < 0) throw new Error('el ritmo se expresa como valor positivo (kg/semana)');
+  if (goal === 'maintain') return 0;
+  const daily = (rate * KCAL_PER_KG) / 7;
+  return goal === 'lose' ? -daily : daily;
+}
+function calorieTarget(tdee, bmr, goal, rate) {
+  const adjustment = goalAdjustment(goal, rate);
+  const unfloored = tdee + adjustment;
+  const kcal = Math.max(unfloored, bmr);
+  return { kcal, tdee, adjustment, unfloored, floor: bmr, floorApplied: unfloored < bmr,
+    effectiveRate: ((kcal - tdee) * 7) / KCAL_PER_KG };
+}
+function pickProteinPerKg(goal, range) { return goal === 'lose' ? range[1] : (range[0] + range[1]) / 2; }
+function macroTargets(kcal, weightKg, goal, refKg = null, range = [1.6, 2.2], fatMin = 0.6, fatPct = 0.25) {
+  const [lo, hi] = range;
+  if (!(lo > 0 && lo <= hi)) throw new Error('rango de proteína inválido');
+  const ref = refKg == null ? weightKg : refKg;
+  const perKg = pickProteinPerKg(goal, range);
+  let protein = perKg * ref;
+  const proteinMin = lo * ref;
+  const fatFloor = fatMin * weightKg;
+  let fat = Math.max(fatFloor, (fatPct * kcal) / 9);
+  const flags = [];
+  const carbsFor = (p, f) => (kcal - 4 * p - 9 * f) / 4;
+  let carbs = carbsFor(protein, fat);
+  if (carbs < 0) {
+    flags.push('reduced_to_fit');
+    fat = Math.max(fatFloor, (kcal - 4 * protein) / 9);
+    carbs = carbsFor(protein, fat);
+    if (carbs < 0) { protein = Math.max(proteinMin, (kcal - 9 * fat) / 4); carbs = carbsFor(protein, fat); }
+    if (carbs < 0) { carbs = 0; flags.push('minimums_exceed_kcal'); }
+  }
+  return { kcal, protein, carbs, fat, proteinPerKg: ref ? protein / ref : 0,
+    proteinRange: [lo * ref, hi * ref], fatFloor, flags };
+}
+
+/* ---------- series con huecos (NaN = dato faltante, nunca 0) ---------- */
+function movingAverage(values, windowDays = CFG.maDays, minPeriods = 3) {
+  return values.map((_, i) => {
+    let sum = 0, n = 0;
+    for (let j = Math.max(0, i - windowDays + 1); j <= i; j++) if (isNum(values[j])) { sum += values[j]; n++; }
+    return n >= minPeriods ? sum / n : NaN;
+  });
+}
+function interpolateBf(values) {
+  const out = values.map(() => NaN);
+  const idx = []; values.forEach((v, i) => { if (isNum(v)) idx.push(i); });
+  if (!idx.length) return out;
+  for (let k = 0; k < idx.length; k++) {
+    const i = idx[k]; out[i] = values[i];
+    const next = idx[k + 1];
+    if (next !== undefined) for (let j = i + 1; j < next; j++) out[j] = values[i] + ((values[next] - values[i]) * (j - i)) / (next - i);
+  }
+  for (let j = idx[idx.length - 1] + 1; j < values.length; j++) out[j] = values[idx[idx.length - 1]];
+  return out;
+}
+/** overrides[i]: null (auto) | true | false. Hoy nunca es válido salvo que se fuerce. */
+function validFoodDays(kcal, minKcal, overrides, todayIdx = -1) {
+  return kcal.map((k, i) => {
+    const ov = overrides ? overrides[i] : null;
+    if (ov === true) return isNum(k);
+    if (ov === false) return false;
+    if (i === todayIdx) return false;
+    return isNum(k) && k >= minKcal;
+  });
+}
+function weeklyIntake(dates, kcalValid) {
+  const weeks = new Map();
+  dates.forEach((d, i) => {
+    if (!isNum(kcalValid[i])) return;
+    const n = dayNum(d), monday = n - ((n + 3) % 7);   // 1970-01-01 fue jueves
+    const w = weeks.get(monday) || { sum: 0, count: 0 };
+    w.sum += kcalValid[i]; w.count++; weeks.set(monday, w);
+  });
+  return [...weeks.entries()].sort((a, b) => a[0] - b[0])
+    .map(([monday, w]) => ({ weekStart: isoOf(monday), meanKcal: w.sum / w.count, validDays: w.count }));
+}
+
+/* ---------- gasto real por datos ---------- */
+const T95 = [NaN, 12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.16, 2.145, 2.131,
+  2.12, 2.11, 2.101, 2.093, 2.086, 2.08, 2.074, 2.069, 2.064, 2.06, 2.056, 2.052, 2.048, 2.045, 2.042];
+function t95(df) { if (df < 1) throw new Error('grados de libertad deben ser ≥ 1'); return df <= 30 ? T95[df] : 1.96; }
+function linearFit(x, y) {
+  const n = x.length;
+  if (n < 3) return null;
+  const xm = x.reduce((a, b) => a + b, 0) / n, ym = y.reduce((a, b) => a + b, 0) / n;
+  let sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { sxx += (x[i] - xm) ** 2; sxy += (x[i] - xm) * (y[i] - ym); }
+  if (sxx === 0) return null;
+  const slope = sxy / sxx;
+  let sse = 0;
+  for (let i = 0; i < n; i++) sse += (y[i] - (ym + slope * (x[i] - xm))) ** 2;
+  return { slope, se: Math.sqrt(sse / (n - 2) / sxx) };
+}
+function confidenceLabel(half) { return half <= CFG.ciHigh ? 'high' : half <= CFG.ciMedium ? 'medium' : 'low'; }
+
+/** weights/kcalValid: arrays alineados por día (NaN = faltante). La ventana termina en endIdx. */
+function estimateTdee(weights, kcalValid, endIdx, windowDays = CFG.windowDays, o = {}) {
+  const minFood = o.minFoodDays ?? CFG.minFoodDays, minW = o.minWeighings ?? CFG.minWeighings, minHalf = o.minPerHalf ?? CFG.minPerHalf;
+  const at = (arr, i) => (i >= 0 && i < arr.length ? arr[i] : NaN);
+  const start = endIdx - windowDays + 1;
+  const w = [], k = [];
+  for (let i = start; i <= endIdx; i++) { w.push(at(weights, i)); k.push(at(kcalValid, i)); }
+  const half = Math.floor(windowDays / 2);
+  const cnt = (a) => a.filter(isNum).length;
+  const nFood = cnt(k), nW = cnt(w), nW1 = cnt(w.slice(0, half)), nW2 = cnt(w.slice(half));
+  const avgIntake = nFood ? k.filter(isNum).reduce((a, b) => a + b, 0) / nFood : null;
+  const reasons = [];
+  if (nFood < minFood) reasons.push('food_days');
+  if (nW < minW) reasons.push('weighings');
+  else if (nW1 < minHalf || nW2 < minHalf) reasons.push('weighings_halves');
+  const base = { ok: false, reasons, startIdx: start, endIdx, windowDays, nFood, nWeighings: nW, nWeighings1: nW1, nWeighings2: nW2,
+    avgIntake, slope: null, slopeSe: null, tdee: null, ciHalf: null, confidence: null };
+  if (reasons.length) return base;
+  const xs = [], ys = [];
+  w.forEach((v, i) => { if (isNum(v)) { xs.push(i); ys.push(v); } });
+  const fit = linearFit(xs, ys);
+  if (!fit) return { ...base, reasons: ['no_variation'] };
+  const ciHalf = t95(nW - 2) * fit.se * KCAL_PER_KG;
+  return { ...base, ok: true, reasons: [], slope: fit.slope, slopeSe: fit.se, tdee: avgIntake - fit.slope * KCAL_PER_KG,
+    ciHalf, confidence: confidenceLabel(ciHalf) };
+}
+function rollingTdee(weights, kcalValid, windowDays = CFG.windowDays, o = {}) {
+  const out = weights.map(() => null);
+  for (let end = windowDays - 1; end < weights.length; end++) {
+    const r = estimateTdee(weights, kcalValid, end, windowDays, o);
+    if (r.ok) out[end] = { tdee: r.tdee, lo: r.tdee - r.ciHalf, hi: r.tdee + r.ciHalf, confidence: r.confidence, avgIntake: r.avgIntake };
+  }
+  return out;
+}
+function recommendTarget(data, currentKcal, goal, rate, bmr, o = {}) {
+  const maxStep = o.maxStepKcal ?? CFG.maxStepKcal, noise = o.noiseFloorKcal ?? CFG.noiseFloorKcal;
+  if (!data.ok || data.tdee == null) return { status: 'insufficient' };
+  const adjustment = goalAdjustment(goal, rate);
+  const implied = currentKcal - adjustment;
+  const withinNoise = Math.abs(data.tdee - implied) < (data.ciHalf || 0);
+  const idealRaw = data.tdee + adjustment, ideal = Math.max(idealRaw, bmr), limitedByFloor = idealRaw < bmr;
+  const diff = ideal - currentKcal;
+  if (Math.abs(diff) < noise) return { status: 'keep', ideal, recommended: currentKcal, delta: 0, implied, withinNoise, limitedByStep: false, limitedByFloor };
+  const step = Math.max(-maxStep, Math.min(maxStep, diff));
+  const recommended = Math.max(currentKcal + step, bmr);
+  return { status: 'adjust', ideal, recommended, delta: recommended - currentKcal, implied, withinNoise,
+    limitedByStep: Math.abs(diff) > maxStep, limitedByFloor };
+}
+
+/* ---------- tabla diaria a partir de los datos guardados ---------- */
+const dayKcal = (day) => (day && day.entries && day.entries.length ? day.entries.reduce((s, e) => s + e.kcal, 0) : NaN);
+/** data = { days: {iso: doc}, targets: [{from,...}] ordenados, profile }. Devuelve arrays alineados entre start y end. */
+function buildFrame(data, startIso, endIso, today) {
+  const keys = Object.keys(data.days).filter((k) => {
+    const d = data.days[k];
+    return d && (isNum(d.weight) || isNum(d.bf) || (d.entries && d.entries.length));
+  }).sort();
+  const fullStart = keys.length && keys[0] < startIso ? keys[0] : startIso;
+  const dates = dateRange(fullStart, endIso);
+  const profile = data.profile;
+  const minKcal = profile && isNum(profile.minValidKcal) ? profile.minValidKcal : CFG.defaultMinValidKcal;
+  const col = (f) => dates.map((d) => (data.days[d] && isNum(data.days[d][f]) ? data.days[d][f] : NaN));
+  const weight = col('weight'), bf = col('bf');
+  const kcal = dates.map((d) => dayKcal(data.days[d]));
+  const sumF = (f) => dates.map((d) => (data.days[d] && data.days[d].entries && data.days[d].entries.length
+    ? data.days[d].entries.reduce((s, e) => s + e[f], 0) : NaN));
+  const overrides = dates.map((d) => (data.days[d] && typeof data.days[d].forced === 'boolean' ? data.days[d].forced : null));
+  const todayIdx = dates.indexOf(today);
+  const valid = validFoodDays(kcal, minKcal, overrides, todayIdx);
+  const kcalValid = kcal.map((k, i) => (valid[i] ? k : NaN));
+  const ma7 = movingAverage(weight);
+  const bfDaily = interpolateBf(bf);
+  const lean = ma7.map((w, i) => w * (1 - bfDaily[i] / 100));
+  const tg = data.targets || [];
+  const target = dates.map((d) => { let t = null; for (const x of tg) if (x.from <= d) t = x; return t; });
+  const from = dates.indexOf(startIso) >= 0 ? dates.indexOf(startIso) : 0;
+  const cut = (a) => a.slice(from);
+  return { dates: cut(dates), weight: cut(weight), ma7: cut(ma7), bf: cut(bf), bfDaily: cut(bfDaily), lean: cut(lean), kcal: cut(kcal),
+    protein: cut(sumF('p')), carbs: cut(sumF('c')), fat: cut(sumF('f')), valid: cut(valid), kcalValid: cut(kcalValid),
+    targetKcal: cut(target).map((t) => (t ? t.kcal : NaN)),
+    _full: { dates, weight, kcalValid, bfDaily, ma7, from } };
+}
+function formulaSeries(full, profile) {
+  return full.dates.map((d, i) => {
+    if (!isNum(full.ma7[i])) return null;
+    const bf = profile.mifflinOnly || !isNum(full.bfDaily[i]) ? null : full.bfDaily[i];
+    const r = estimateBmr(full.ma7[i], profile.heightCm, ageOn(profile.birth, d), profile.sex, bf, profile.mifflinOnly ? 'mifflin' : 'auto');
+    return { bmr: r.kcal, tdee: r.kcal * activityFactor(profile.activity), method: r.method };
+  });
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = { KCAL_PER_KG, ACTIVITY_FACTORS, CFG, dayNum, isoOf, addDays, todayIso, dateRange, ageOn, mifflin, katch, estimateBmr,
+    proteinRefWeight, navyBodyFat, activityFactor, goalAdjustment, calorieTarget, macroTargets, movingAverage, interpolateBf,
+    validFoodDays, weeklyIntake, t95, linearFit, estimateTdee, rollingTdee, recommendTarget, buildFrame, formulaSeries, dayKcal };
+}
+
+/* ===== STORE: persistencia. Nube (db de Claude, privado por usuario) con respaldo en localStorage ===== */
+const KINDS = ['profile', 'days', 'foods', 'targets'];
+
+function makeLocalBackend() {
+  const KEY = 'macro-tracker:v1';
+  let mem = { profile: {}, days: {}, foods: {}, targets: {} };
+  try { const raw = localStorage.getItem(KEY); if (raw) mem = { ...mem, ...JSON.parse(raw) }; } catch (e) { /* sin almacenamiento: solo memoria */ }
+  const listeners = {};
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* ignorar */ } };
+  const emit = (kind) => (listeners[kind] || []).forEach((fn) => fn(Object.entries(mem[kind]).map(([id, d]) => ({ id, ...d }))));
+  return {
+    mode: 'local',
+    async init() { return true; },
+    subscribe(kind, fn) { (listeners[kind] = listeners[kind] || []).push(fn); setTimeout(() => emit(kind), 0); },
+    async put(kind, id, data) { mem[kind][id] = JSON.parse(JSON.stringify(data)); persist(); emit(kind); },
+    async remove(kind, id) { delete mem[kind][id]; persist(); emit(kind); },
+  };
+}
+
+function makeCloudBackend(db, uid) {
+  const base = db.collection('data/users/' + uid);
+  const app = base.doc('app');
+  const ref = (kind, id) => (kind === 'profile' ? base.doc('profile') : app.collection(kind).doc(id));
+  const chains = new Map();   // una escritura a la vez por documento
+  const enqueue = (path, fn) => {
+    const next = (chains.get(path) || Promise.resolve()).catch(() => {}).then(fn);
+    chains.set(path, next);
+    return next;
+  };
+  const retry = async (fn) => {
+    try { return await fn(); } catch (e) {
+      if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) {
+        await new Promise((r) => setTimeout(r, 400 + Math.random() * 600));
+        return fn();
+      }
+      throw e;
+    }
+  };
+  return {
+    mode: 'cloud',
+    async init() { return true; },
+    subscribe(kind, fn, onError) {
+      const src = kind === 'profile' ? base.doc('profile') : app.collection(kind);
+      if (kind === 'profile') src.onSnapshot((s) => fn(s.exists ? [{ id: 'main', ...s.data() }] : []), onError);
+      else src.onSnapshot((s) => fn(s.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+    },
+    put(kind, id, data) { const r = ref(kind, id); return enqueue(r.path, () => retry(() => r.set(JSON.parse(JSON.stringify(data))))); },
+    remove(kind, id) { const r = ref(kind, id); return enqueue(r.path, () => retry(() => r.delete())); },
+  };
+}
+
+/** Intenta la nube; si no hay db o identidad, usa el navegador. Devuelve el backend elegido. */
+async function openBackend() {
+  try {
+    if (window.claude && window.claude.use) {
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      const uid = user ? await user.id() : null;
+      if (db && uid) return makeCloudBackend(db, uid);
+    }
+  } catch (e) { /* cae al respaldo local */ }
+  return makeLocalBackend();
+}
+
+if (typeof module !== 'undefined') module.exports = { openBackend, makeLocalBackend, makeCloudBackend, KINDS };
+
+/* ===== APP-CORE: estado, ayudantes de interfaz, plan de metas ===== */
+const MEALS = ['breakfast', 'lunch', 'dinner', 'snack'];
+const MEAL_LABEL = { breakfast: 'Desayuno', lunch: 'Comida', dinner: 'Cena', snack: 'Colación' };
+const ACTIVITY_LABEL = {
+  sedentary: 'Sedentario (poco o nada de ejercicio)', light: 'Ligero (1–3 días/semana)', moderate: 'Moderado (3–5 días/semana)',
+  active: 'Activo (6–7 días/semana)', very_active: 'Muy activo (entrenamiento intenso o trabajo físico)',
+};
+const GOAL_LABEL = { maintain: 'Mantener', gain: 'Ganar masa', lose: 'Perder grasa' };
+const BF_LABEL = { measured: 'medido', self_estimate: 'estimado por ti', navy: 'fórmula Navy (medidas)' };
+const METHOD_LABEL = { katch_mcardle: 'Katch-McArdle', mifflin_st_jeor: 'Mifflin-St Jeor' };
+const CONF_LABEL = { high: 'alta', medium: 'media', low: 'baja' };
+const MACROS = [['protein', 'Proteína', 's1', 'p'], ['carbs', 'Carbohidratos', 's2', 'c'], ['fat', 'Grasa', 's3', 'f']];
+const STALE_WEIGHT_DAYS = 14, STALE_BF_DAYS = 90;
+
+const S = {
+  backend: null, mode: 'local', pending: 0, profile: null, days: {}, foods: {}, targets: [],
+  loaded: { profile: false, days: false, foods: false, targets: false },
+  tab: 'today', date: todayIso(), caps: { sample: null, downloads: null },
+  range: { preset: '90', start: null, end: null }, tdeeWindow: 14, showArchived: false, foodFilter: 'all',
+};
+
+/* ---------- utilidades ---------- */
+const $ = (sel, root = document) => root.querySelector(sel);
+const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const uid = () => {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
+  // Respaldo (contextos no seguros): 32 caracteres hex de Math.random, sin prefijo de hora que se repita.
+  return Array.from({ length: 4 }, () => Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, '0')).join('');
+};
+let _fieldSeq = 0;
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
+const num = (v) => { if (v === '' || v == null) return null; const n = Number(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
+const fmt0 = (n) => (isNum(n) ? Math.round(n).toLocaleString('es-MX') : '—');
+const fmt1 = (n) => (isNum(n) ? n.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—');
+const fmtDM = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+const fmtDMY = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
+const longDate = (iso) => new Date(dayNum(iso) * DAY_MS).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const rgba = (hex, a) => { const c = hex.replace('#', ''); const v = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16)); return `rgba(${v[0]},${v[1]},${v[2]},${a})`; };
+const mealByHour = () => { const hr = new Date().getHours(); return hr < 11 ? 'breakfast' : hr < 17 ? 'lunch' : hr < 21 ? 'dinner' : 'snack'; };
+const foodList = () => Object.values(S.foods);
+const sortedTargets = () => S.targets.slice().sort((a, b) => (a.from < b.from ? -1 : 1));
+const targetOn = (iso) => { let t = null; for (const x of sortedTargets()) if (x.from <= iso) t = x; return t; };
+
+/* append/replaceChildren toleran null/false y listas (como h()): evita que el DOM escriba «null» en pantalla. */
+(function () {
+  const clean = (kids) => kids.flat(Infinity).filter((k) => k != null && k !== false);
+  const ap = Element.prototype.append, rc = Element.prototype.replaceChildren;
+  Element.prototype.append = function (...kids) { return ap.apply(this, clean(kids)); };
+  Element.prototype.replaceChildren = function (...kids) { return rc.apply(this, clean(kids)); };
+})();
+
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  let value;
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k === 'value') value = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'checked' || k === 'disabled' || k === 'selected' || k === 'hidden') el[k] = !!v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat(Infinity)) { if (kid == null || kid === false) continue; el.append(kid.nodeType ? kid : document.createTextNode(String(kid))); }
+  if (value !== undefined) el.value = value;
+  return el;
+}
+const ICONS = {
+  today: 'M8 3v4M16 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM9 15l2 2 4-4',
+  progress: 'M4 19V5M4 19h16M8 15l3-4 3 3 5-7',
+  foods: 'M12 7c-2-3-7-2-7 3 0 5 3 10 7 10s7-5 7-10c0-5-5-6-7-3zM12 7c0-2 1-3 3-4',
+  goals: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
+  data: 'M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6',
+};
+const icon = (name) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]); s.append(p); return s; };
+
+function notice(kind, ...kids) { return h('div', { class: 'notice ' + kind, role: kind === 'bad' ? 'alert' : null }, h('span', null, ...kids)); }
+function field(label, input, hint) { const id = input.id || (input.id = 'fld' + (++_fieldSeq)); return h('div', { class: 'field' }, h('label', { for: id }, label), input, hint ? h('div', { class: 'hint' }, hint) : null); }
+function numInput(value, o = {}) { return h('input', { type: 'number', inputmode: 'decimal', step: o.step || 'any', min: o.min, max: o.max, value: value == null ? '' : value, placeholder: o.placeholder, id: o.id }); }
+function select(options, value, id) { return h('select', { id, value }, options.map(([v, l]) => h('option', { value: v, selected: v === value }, l))); }
+function segmented(options, value, onPick) {
+  const wrap = h('div', { class: 'seg', role: 'group' });
+  options.forEach(([v, l]) => wrap.append(h('button', { type: 'button', 'aria-pressed': String(v === value), onclick: (e) => { [...wrap.children].forEach((b) => b.setAttribute('aria-pressed', 'false')); e.currentTarget.setAttribute('aria-pressed', 'true'); onPick(v); } }, l)));
+  return wrap;
+}
+function tableView(headers, rows, label = 'Ver tabla') {
+  if (!rows.length) return h('details', null, h('summary', null, label), h('p', { class: 'sub' }, 'Sin datos en este rango.'));
+  return h('details', null, h('summary', null, label), h('div', { class: 'tbl-wrap' }, h('table', null,
+    h('thead', null, h('tr', null, headers.map((x) => h('th', null, x)))), h('tbody', null, rows.map((r) => h('tr', null, r.map((c) => h('td', null, c))))))));
+}
+
+let toastTimer;
+function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms); }
+
+let sheetEl = null;
+function openSheet(title, build) {
+  closeSheet();
+  const body = h('div', { class: 'sheet-body', style: 'display:flex;flex-direction:column;gap:14px' });
+  const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, h('div', { class: 'grab' }),
+    h('div', { class: 'sheet-head' }, h('h2', null, title), h('button', { class: 'btn ghost sm', type: 'button', onclick: closeSheet }, 'Cerrar')), body);
+  const scrim = h('div', { class: 'scrim', onclick: (e) => { if (e.target === scrim) closeSheet(); } }, sheet);
+  document.body.append(scrim); sheetEl = scrim;
+  build(body, closeSheet);
+  return { body, close: closeSheet };
+}
+function closeSheet() { if (sheetEl) { sheetEl.remove(); sheetEl = null; } flushRender(); }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+
+/* ---------- escritura con indicador de guardado ---------- */
+async function write(fn) {
+  S.pending++; updateSync();
+  try { await fn(); return true; } catch (e) {
+    console.error(e);
+    toast(e && e.code === 'quota_exceeded' ? 'Se llenó el espacio de almacenamiento de la página.' : 'No se pudo guardar. Revisa tu conexión e intenta de nuevo.', 4200);
+    return false;
+  } finally { S.pending--; updateSync(); }
+}
+function updateSync() {
+  const el = $('#sync'); if (!el) return;
+  const st = S.pending > 0 ? 'saving' : S.mode === 'cloud' ? 'cloud' : 'local';
+  el.dataset.state = st;
+  el.textContent = st === 'saving' ? 'Guardando…' : st === 'cloud' ? 'Guardado en tu cuenta' : 'Solo en este navegador';
+}
+const isEmptyDay = (d) => !isNum(d.weight) && !isNum(d.bf) && !isNum(d.waist) && !isNum(d.neck) && !isNum(d.hip) && !d.note && !(d.entries && d.entries.length) && typeof d.forced !== 'boolean';
+function saveDay(iso, mutate) {
+  const doc = clone(S.days[iso] || { date: iso });
+  mutate(doc);
+  for (const k of ['weight', 'bf', 'waist', 'neck', 'hip', 'note', 'bfSource', 'forced']) if (doc[k] == null || doc[k] === '') delete doc[k];
+  if (!isNum(doc.bf)) delete doc.bfSource;
+  const empty = isEmptyDay(doc);
+  if (empty) delete S.days[iso]; else S.days[iso] = doc;
+  scheduleRender();
+  return write(() => (empty ? S.backend.remove('days', iso) : S.backend.put('days', iso, doc)));
+}
+function saveFood(food) { S.foods[food.id] = food; scheduleRender(); return write(() => S.backend.put('foods', food.id, food)); }
+function removeFood(id) { delete S.foods[id]; scheduleRender(); return write(() => S.backend.remove('foods', id)); }
+function saveProfile(p) { S.profile = p; scheduleRender(); return write(() => S.backend.put('profile', 'main', p)); }
+
+/* ---------- render con protección al escribir ---------- */
+let renderQueued = false, deferred = false;
+const typing = () => { const a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && $('#view').contains(a); };
+function scheduleRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; if (typing()) { deferred = true; return; } render(); });
+}
+function flushRender() { if (!sheetEl) { deferred = false; render(); } }
+document.addEventListener('focusout', () => { if (deferred) setTimeout(() => { if (!typing() && !sheetEl) { deferred = false; render(); } }, 120); });
+
+/* ---------- estado corporal y plan de metas (equivale a services.build_plan) ---------- */
+function bodyState() {
+  const keys = Object.keys(S.days).sort();
+  let wKey = null, bKey = null;
+  for (let i = keys.length - 1; i >= 0; i--) {
+    const d = S.days[keys[i]];
+    if (wKey == null && isNum(d.weight)) wKey = keys[i];
+    if (bKey == null && isNum(d.bf)) bKey = keys[i];
+    if (wKey && bKey) break;
+  }
+  let weight = null;
+  if (wKey) {
+    const vals = [];
+    for (let n = dayNum(wKey) - 6; n <= dayNum(wKey); n++) { const d = S.days[isoOf(n)]; if (d && isNum(d.weight)) vals.push(d.weight); }
+    weight = mean(vals);
+  }
+  return { weight, weightDate: wKey, bf: bKey ? S.days[bKey].bf : null, bfSource: bKey ? S.days[bKey].bfSource : null, bfDate: bKey };
+}
+function buildPlan(on = todayIso()) {
+  const p = S.profile, body = bodyState();
+  if (!p || body.weight == null) return null;
+  const notes = [];
+  const useBf = body.bf != null && !p.mifflinOnly;
+  if (body.bf != null && !useBf) notes.push('bf_ignored');
+  if (useBf) {
+    if (body.bfSource === 'self_estimate') notes.push('bf_self_estimate'); else if (body.bfSource === 'navy') notes.push('bf_navy');
+    if (dayNum(on) - dayNum(body.bfDate) > STALE_BF_DAYS) notes.push('bf_stale');
+  }
+  if (dayNum(on) - dayNum(body.weightDate) > STALE_WEIGHT_DAYS) notes.push('no_recent_weight');
+  const age = ageOn(p.birth, on);
+  const bmr = estimateBmr(body.weight, p.heightCm, age, p.sex, useBf ? body.bf : null, p.mifflinOnly ? 'mifflin' : 'auto');
+  const tdee = bmr.kcal * activityFactor(p.activity);
+  const calories = calorieTarget(tdee, bmr.kcal, p.goal, p.rate);
+  if (calories.floorApplied) notes.push('floor_applied');
+  const ref = proteinRefWeight(body.weight, useBf ? body.bf : null);
+  const macros = macrosFor(p, body.weight, ref, calories.kcal);
+  return { profile: p, age, body, bmr, tdee, calories, ref, macros, notes };
+}
+const macrosFor = (p, weight, ref, kcal) => macroTargets(kcal, weight, p.goal, ref, [p.pMin, p.pMax], p.fatMin, p.fatPct);
+function saveTarget(plan, kcal, source, note) {
+  const m = macrosFor(plan.profile, plan.body.weight, plan.ref, kcal);
+  const t = { from: todayIso(), kcal, p: m.protein, c: m.carbs, f: m.fat, source, bmrMethod: plan.bmr.method, note: note || null };
+  S.targets = S.targets.filter((x) => x.from !== t.from).concat(t); scheduleRender();
+  return write(() => S.backend.put('targets', t.from, t));
+}
+function dataFor() { return { days: S.days, targets: sortedTargets(), profile: S.profile }; }
+function adaptiveStatus(plan, windowDays) {
+  const end = addDays(todayIso(), -1), start = addDays(end, -(windowDays - 1));
+  const fr = buildFrame(dataFor(), start, end, todayIso());
+  const data = estimateTdee(fr.weight, fr.kcalValid, fr.dates.length - 1, windowDays);
+  const active = targetOn(todayIso());
+  const current = active ? active.kcal : plan.calories.kcal;
+  const rec = recommendTarget(data, current, plan.profile.goal, plan.profile.rate, plan.bmr.kcal);
+  return { data, rec, current, windowStart: start, windowEnd: end };
+}
+const PLAN_NOTES = {
+  no_recent_weight: (pl) => `Tu último peso registrado tiene más de ${STALE_WEIGHT_DAYS} días y las metas usan ese valor. Registra un peso reciente.`,
+  bf_self_estimate: (pl) => `El % de grasa que se usa es una estimación tuya, no una medición. Katch-McArdle lo toma tal cual: cada punto de error mueve el gasto basal ≈ ${Math.round(21.6 * pl.body.weight / 100)} kcal. Si no confías en ese dato, activa «Usar siempre Mifflin-St Jeor» en opciones avanzadas.`,
+  bf_navy: () => 'El % de grasa viene de la fórmula Navy con tus medidas; su error típico es de ±3–4 puntos.',
+  bf_stale: () => `Tu último % de grasa tiene más de ${STALE_BF_DAYS} días y puede estar desactualizado.`,
+  bf_ignored: () => 'Tienes un % de grasa registrado, pero fuerzas Mifflin-St Jeor: se ignora en el gasto basal y en la proteína (sí se grafica la masa magra).',
+  floor_applied: (pl) => `El ritmo elegido (${pl.profile.rate.toFixed(2)} kg/semana) exigiría ≈ ${fmt0(pl.calories.unfloored)} kcal/día, por debajo de tu gasto basal estimado (${fmt0(pl.calories.floor)} kcal). La meta se fijó en el basal, así que el ritmo real sería ≈ ${Math.abs(pl.calories.effectiveRate).toFixed(2)} kg/semana. Elige un ritmo más lento.`,
+};
+const REASON_TEXT = {
+  food_days: (d) => `Días con comida registrada: ${d.nFood} de ${CFG.minFoodDays} necesarios (en los últimos ${d.windowDays} días).`,
+  weighings: (d) => `Pesajes: ${d.nWeighings} de ${CFG.minWeighings} necesarios en la ventana.`,
+  weighings_halves: (d) => `Los pesajes deben cubrir ambas mitades de la ventana (mínimo ${CFG.minPerHalf} en cada una); tienes ${d.nWeighings1} y ${d.nWeighings2}.`,
+  no_variation: () => 'No hay variación suficiente en las fechas de pesaje para estimar una tendencia.',
+};
+const MACRO_FLAG_TEXT = {
+  reduced_to_fit: 'Con esta meta calórica se redujeron grasa y/o proteína respecto a lo ideal para que cuadren los carbohidratos (siguen sobre sus mínimos).',
+  minimums_exceed_kcal: 'Los mínimos de proteína y grasa no caben en esta meta calórica: carbohidratos = 0. Revisa el ritmo o el rango de proteína.',
+};
+
+/* ===== VISTA HOY ===== */
+const sumEntries = (entries) => entries.reduce((t, e) => ({ kcal: t.kcal + e.kcal, p: t.p + e.p, c: t.c + e.c, f: t.f + e.f }), { kcal: 0, p: 0, c: 0, f: 0 });
+const per = (food, grams) => ({ kcal: (food.kcal * grams) / 100, p: (food.p * grams) / 100, c: (food.c * grams) / 100, f: (food.f * grams) / 100 });
+const kcalFromMacros = (p, c, f) => 4 * p + 4 * c + 9 * f;
+const kcalMismatch = (kcal, p, c, f) => { const exp = kcalFromMacros(p, c, f); return Math.abs(kcal - exp) > Math.max(0.15 * Math.max(kcal, exp), 20); };
+function validateFood(f) {
+  const errs = [];
+  if (!f.name || !f.name.trim()) errs.push('El alimento necesita un nombre.');
+  for (const [k, l] of [['kcal', 'Las calorías'], ['p', 'La proteína'], ['c', 'Los carbohidratos'], ['f', 'La grasa']]) if (!isNum(f[k]) || f[k] < 0) errs.push(l + ' deben ser un número igual o mayor que 0.');
+  if (isNum(f.kcal) && f.kcal > 900) errs.push('Más de 900 kcal por 100 g no es posible (la grasa pura tiene ≈ 900).');
+  if (isNum(f.p) && isNum(f.c) && isNum(f.f) && f.p + f.c + f.f > 100.5) errs.push('Proteína + carbohidratos + grasa suman más de 100 g por cada 100 g.');
+  if (f.servingG != null && !(f.servingG > 0)) errs.push('La porción debe ser mayor que 0.');
+  return errs;
+}
+function foodLabel(f) { return h('span', null, f.name, f.brand ? ' (' + f.brand + ')' : '', f.source === 'recipe' ? h('span', { class: 'tag' }, 'receta') : null, f.source === 'ai' ? h('span', { class: 'tag warn' }, 'estimado por IA') : null, f.source === 'off' ? h('span', { class: 'tag' }, 'OFF') : null); }
+function recentFoods(limit = 12) {
+  const seen = new Set(), out = [];
+  for (const k of Object.keys(S.days).sort().reverse()) {
+    for (const e of (S.days[k].entries || []).slice().reverse()) {
+      if (seen.has(e.foodId)) continue; seen.add(e.foodId);
+      const f = S.foods[e.foodId]; if (f && !f.archived) out.push(f);
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+function searchFoods(query, { exclude, limit = 40 } = {}) {
+  const tokens = norm(query).split(' ').filter(Boolean);
+  if (!tokens.length) return [];
+  const first = norm(query);
+  return foodList().filter((f) => !f.archived && f.id !== exclude && tokens.every((t) => norm(f.name + ' ' + (f.brand || '')).includes(t)))
+    .sort((a, b) => (norm(b.name).startsWith(first) - norm(a.name).startsWith(first)) || a.name.length - b.name.length || (a.name < b.name ? -1 : 1)).slice(0, limit);
+}
+
+function viewToday() {
+  const iso = S.date, today = todayIso(), day = S.days[iso] || {}, entries = day.entries || [], target = targetOn(iso), tot = sumEntries(entries);
+  const root = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
+
+  const dateInput = h('input', { type: 'date', value: iso, max: today, 'aria-label': 'Elegir fecha', onchange: (e) => { if (e.target.value) { S.date = e.target.value > today ? today : e.target.value; render(); } } });
+  root.append(h('div', { class: 'date-bar' },
+    h('button', { class: 'btn', type: 'button', 'aria-label': 'Día anterior', onclick: () => { S.date = addDays(iso, -1); render(); } }, '‹'),
+    h('div', { class: 'date-label' }, h('span', null, iso === today ? 'Hoy' : longDate(iso).replace(/^./, (c) => c.toUpperCase())), iso === today ? h('span', { class: 'sub', style: 'font-weight:400' }, longDate(iso)) : null, dateInput),
+    h('button', { class: 'btn', type: 'button', 'aria-label': 'Día siguiente', disabled: iso >= today, onclick: () => { S.date = addDays(iso, 1); render(); } }, '›')));
+
+  if (!S.profile) root.append(notice('info', 'Para empezar, crea tu perfil y tu meta en la pestaña ', h('b', null, 'Metas'), '. Mientras tanto ya puedes registrar comida.'));
+  else if (!target) root.append(notice('warn', 'Aún no tienes una meta vigente. Establécela en la pestaña ', h('b', null, 'Metas'), '.'));
+
+  /* resumen */
+  const hero = h('div', { class: 'kcal-hero' }, h('span', { class: 'big num' }, fmt0(tot.kcal)), h('span', { class: 'muted' }, 'kcal', target ? ' de ' + fmt0(target.kcal) : ''));
+  const card = h('section', { class: 'card', 'aria-label': 'Resumen del día' }, hero);
+  if (target) {
+    const pct = tot.kcal / target.kcal, diff = tot.kcal - target.kcal;
+    card.append(h('div', { class: 'meter', role: 'progressbar', 'aria-valuenow': Math.round(pct * 100), 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: `width:${Math.min(100, pct * 100)}%` })),
+      h('div', { class: 'sub' }, diff <= 0 ? `Te faltan ${fmt0(-diff)} kcal para la meta (${Math.round(pct * 100)} %).` : `Superaste la meta por ${fmt0(diff)} kcal.`));
+  }
+  for (const [key, label, color, short] of MACROS) {
+    const goal = target ? target[short] : null, got = tot[short];
+    card.append(h('div', { class: 'macro' },
+      h('span', { class: 'macro-name' }, h('i', { class: 'dot', style: `background:var(--${color})` }), label),
+      h('div', { class: 'meter' }, h('i', { style: `width:${goal ? Math.min(100, (got / goal) * 100) : 0}%;background:var(--${color})` })),
+      h('b', null, goal ? `${fmt0(got)} / ${fmt0(goal)} g` : `${fmt0(got)} g`)));
+  }
+  root.append(card);
+
+  /* estado del día para la adaptación */
+  if (entries.length) {
+    const minK = S.profile ? S.profile.minValidKcal : CFG.defaultMinValidKcal;
+    const forced = typeof day.forced === 'boolean' ? day.forced : null, cur = forced === null ? 'auto' : forced ? 'yes' : 'no';
+    const autoValid = tot.kcal >= minK && iso !== today;
+    root.append(h('details', { class: 'card' }, h('summary', null, '¿Este día cuenta para estimar mi gasto?'),
+      segmented([['auto', 'Automático'], ['yes', 'Contar siempre'], ['no', 'No contar']], cur, (v) => saveDay(iso, (d) => { if (v === 'auto') delete d.forced; else d.forced = v === 'yes'; })),
+      h('p', { class: 'sub' }, `Automático: cuenta si suma al menos ${fmt0(minK)} kcal${iso === today ? ' y el día ya terminó (hoy casi siempre está incompleto)' : ''}. Ahora mismo: ${autoValid ? 'sí cuenta' : 'no cuenta'}.`)));
+  }
+
+  /* registro por comida */
+  const log = h('section', { class: 'card', 'aria-label': 'Registro' }, h('h2', null, 'Registro'));
+  if (!entries.length) log.append(h('div', { class: 'empty' }, h('span', null, 'Todavía no registras nada este día.'), h('button', { class: 'btn primary', type: 'button', onclick: () => addFoodSheet(iso) }, 'Agregar el primer alimento')));
+  for (const meal of MEALS) {
+    const es = entries.filter((e) => e.meal === meal); if (!es.length) continue;
+    log.append(h('div', { class: 'meal-head', style: 'margin-top:4px' }, h('h3', null, MEAL_LABEL[meal]), h('span', { class: 'sub num' }, fmt0(sumEntries(es).kcal) + ' kcal')),
+      h('div', { class: 'list' }, es.map((e) => h('button', { class: 'row', type: 'button', onclick: () => editEntrySheet(iso, e.id) },
+        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : '')), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
+        h('div', { class: 'end' }, fmt0(e.kcal) + ' kcal')))));
+  }
+  root.append(log);
+
+  root.append(bodyCard(iso, day));
+  return root;
+}
+
+function bodyCard(iso, day) {
+  const hasAny = isNum(day.weight) || isNum(day.bf) || isNum(day.waist);
+  const box = h('details', { class: 'card', open: !hasAny ? true : null }, h('summary', null, 'Peso y medidas del día'));
+  const msg = h('div');
+  const w = numInput(day.weight, { step: '0.1', min: 30, max: 300, placeholder: 'kg' }), bf = numInput(day.bf, { step: '0.1', min: 3, max: 60, placeholder: '%' });
+  const src = select([['measured', 'medido'], ['self_estimate', 'estimado por ti']], day.bfSource === 'measured' ? 'measured' : 'self_estimate');
+  const neck = numInput(day.neck, { step: '0.5', placeholder: 'cm' }), waist = numInput(day.waist, { step: '0.5', placeholder: 'cm' }), hip = numInput(day.hip, { step: '0.5', placeholder: 'cm' });
+  const navy = h('input', { type: 'checkbox', id: 'navy-' + iso });
+  const note = h('input', { type: 'text', value: day.note || '', placeholder: 'opcional' });
+  box.append(h('p', { class: 'sub' }, 'Todo es opcional: puedes registrar solo el peso, o nada. Un día sin pesar no rompe ningún cálculo.'),
+    h('div', { class: 'grid2' }, field('Peso (kg)', w), field('% de grasa', bf)),
+    field('Origen del % de grasa', src, 'Sé honesto con el origen: una estimación a ojo no tiene la precisión de una medición.'),
+    h('div', { class: 'grid3' }, field('Cuello (cm)', neck), field('Cintura (cm)', waist), field('Cadera (cm)', hip, 'Solo mujeres')),
+    h('label', { class: 'check', for: 'navy-' + iso }, navy, h('span', null, 'Si no escribí un % de grasa, estimarlo con mis medidas (fórmula Navy, error típico ±3–4 puntos).')),
+    field('Nota', note), msg,
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn primary', type: 'button', onclick: () => {
+        const bfv = num(bf.value), wv = num(w.value), nk = num(neck.value), wa = num(waist.value), hp = num(hip.value);
+        let bfFinal = bfv, source = bfv != null ? src.value : null, navyUsed = false;
+        const fail = (t) => { msg.replaceChildren(notice('bad', t)); };
+        if (wv != null && (wv < 30 || wv > 300)) return fail('El peso debe estar entre 30 y 300 kg.');
+        if (bfv != null && (bfv < 3 || bfv > 60)) return fail('El % de grasa debe estar entre 3 y 60.');
+        if (bfv == null && navy.checked) {
+          if (!S.profile) return fail('Para la fórmula Navy necesito tu perfil (sexo y estatura). Créalo en Metas.');
+          if (nk == null || wa == null || (S.profile.sex === 'F' && hp == null)) return fail('La fórmula Navy requiere cuello y cintura (y cadera en mujeres).');
+          try { bfFinal = Math.round(navyBodyFat(S.profile.sex, S.profile.heightCm, nk, wa, hp) * 10) / 10; navyUsed = true; } catch (e) { return fail(e.message); }
+          if (bfFinal < 3 || bfFinal > 60) return fail('Con esas medidas la fórmula da ' + bfFinal + ' %, fuera de rango. Revisa las medidas.');
+        }
+        const keepNavy = bfFinal != null && day.bfSource === 'navy' && day.bf === bfFinal;
+        saveDay(iso, (d) => { d.weight = wv; d.bf = bfFinal; d.bfSource = navyUsed || keepNavy ? 'navy' : source; d.neck = nk; d.waist = wa; d.hip = hp; d.note = note.value.trim(); });
+        toast(navyUsed ? `Guardado. Navy estimó ${fmt1(bfFinal)} % de grasa.` : 'Guardado');
+      } }, 'Guardar'),
+      hasAny || day.note ? h('button', { class: 'btn danger', type: 'button', onclick: () => saveDay(iso, (d) => { for (const k of ['weight', 'bf', 'bfSource', 'neck', 'waist', 'hip', 'note']) delete d[k]; }) }, 'Borrar registro corporal') : null));
+  return box;
+}
+
+/* ---------- hoja: agregar alimento ---------- */
+function addFoodSheet(iso, preset) {
+  openSheet('Agregar alimento', (body, close) => {
+    const q = h('input', { type: 'search', placeholder: 'Buscar: tortilla, frijoles, pechuga…', autocomplete: 'off', 'aria-label': 'Buscar alimento' });
+    const results = h('div', { class: 'list' });
+    const step1 = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, q, results);
+    const step2 = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
+    body.append(step1, step2); step2.hidden = true;
+
+    const renderResults = () => {
+      const query = q.value.trim(), foods = query ? searchFoods(query) : recentFoods();
+      results.replaceChildren();
+      if (!query && foods.length) results.append(h('div', { class: 'sub', style: 'padding:4px 0' }, 'Recientes'));
+      if (!foods.length) {
+        results.append(h('div', { class: 'empty' },
+          h('span', null, query ? `No tienes «${query}» guardado.` : 'Aún no tienes alimentos. Crea el primero y quedará guardado.'),
+          h('button', { class: 'btn primary', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f) }); } }, query ? `Crear «${query}»` : 'Crear un alimento')));
+        return;
+      }
+      foods.forEach((f) => results.append(h('button', { class: 'row', type: 'button', onclick: () => pick(f) },
+        h('div', { class: 'main' }, h('div', { class: 'name' }, foodLabel(f)), h('div', { class: 'meta num' }, `${fmt0(f.kcal)} kcal por 100 g${f.servingG ? ' · porción ' + fmt0(f.servingG) + ' g' : ''}`)),
+        h('div', { class: 'end' }, '›'))));
+      if (query) results.append(h('button', { class: 'btn ghost block', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f) }); } }, `+ Crear «${query}» como alimento nuevo`));
+    };
+    q.addEventListener('input', renderResults); renderResults();
+
+    function pick(food) {
+      step1.hidden = true; step2.hidden = false; step2.replaceChildren();
+      let unit = 'g';
+      const qty = numInput(food.servingG ? food.servingG : 100, { step: 'any', min: 0 });
+      const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealByHour());
+      const prev = h('div', { class: 'sub num' });
+      const grams = () => { const v = num(qty.value); return v == null ? NaN : unit === 'g' ? v : v * food.servingG; };
+      const upd = () => { const g = grams(); prev.textContent = g > 0 ? (() => { const m = per(food, g); return `${fmt0(g)} g → ${fmt0(m.kcal)} kcal · P ${fmt1(m.p)} g · C ${fmt1(m.c)} g · G ${fmt1(m.f)} g`; })() : 'Escribe una cantidad mayor que 0.'; };
+      qty.addEventListener('input', upd);
+      const qtyField = field('Cantidad (g)', qty);
+      const unitSeg = food.servingG ? segmented([['g', 'Gramos'], ['serv', 'Porciones']], 'g', (v) => { unit = v; qty.value = v === 'g' ? food.servingG : 1; qtyField.querySelector('label').textContent = v === 'g' ? 'Cantidad (g)' : 'Porciones'; upd(); }) : null;
+      step2.append(h('div', null, h('h3', null, foodLabel(food)), h('div', { class: 'sub' }, `${fmt0(food.kcal)} kcal por 100 g${food.servingG ? ' · ' + (food.servingLabel || 'porción de ' + fmt0(food.servingG) + ' g') : ''}`)),
+        food.source === 'ai' ? notice('warn', 'Estos valores los estimó una IA; no son de una etiqueta. Verifícalos cuando puedas.') : null,
+        unitSeg, qtyField, field('Comida', meal), prev,
+        h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: () => { step2.hidden = true; step1.hidden = false; } }, 'Atrás'),
+          h('button', { class: 'btn primary', type: 'button', onclick: () => {
+            const g = grams(); if (!(g > 0)) { toast('Escribe una cantidad mayor que 0.'); return; }
+            const m = per(food, g);
+            const entry = { id: uid(), meal: meal.value, foodId: food.id, name: food.name, brand: food.brand || null, grams: g, kcal: m.kcal, p: m.p, c: m.c, f: m.f, at: Date.now() };
+            saveDay(iso, (d) => { d.entries = (d.entries || []).concat(entry); });
+            close(); toast(`Agregado: ${food.name}`);
+          } }, 'Agregar')));
+      upd(); qty.focus();
+    }
+    if (preset) pick(preset); else setTimeout(() => q.focus(), 50);
+  });
+}
+
+/* ---------- hoja: editar o borrar una entrada ---------- */
+function editEntrySheet(iso, entryId) {
+  const entry = ((S.days[iso] || {}).entries || []).find((e) => e.id === entryId);
+  if (!entry) return;
+  openSheet(entry.name, (body, close) => {
+    const qty = numInput(Math.round(entry.grams * 10) / 10, { step: 'any', min: 0 });
+    const prev = h('div', { class: 'sub num' });
+    const upd = () => { const g = num(qty.value); prev.textContent = g > 0 ? `${fmt0(g)} g → ${fmt0((entry.kcal * g) / entry.grams)} kcal` : ''; };
+    qty.addEventListener('input', upd); upd();
+    body.append(field('Cantidad (g)', qty), prev, h('div', { class: 'btn-row' },
+      h('button', { class: 'btn danger', type: 'button', onclick: () => { saveDay(iso, (d) => { d.entries = d.entries.filter((e) => e.id !== entryId); }); close(); toast('Entrada borrada'); } }, 'Borrar'),
+      h('button', { class: 'btn primary', type: 'button', onclick: () => {
+        const g = num(qty.value); if (!(g > 0)) { toast('La cantidad debe ser mayor que 0.'); return; }
+        const k = g / entry.grams;
+        saveDay(iso, (d) => { d.entries = d.entries.map((e) => (e.id === entryId ? { ...e, grams: g, kcal: e.kcal * k, p: e.p * k, c: e.c * k, f: e.f * k } : e)); });
+        close();
+      } }, 'Guardar')));
+  });
+}
+
+/* ---------- hoja: crear o editar un alimento ---------- */
+function openFoodForm(existing, { name, onSaved } = {}) {
+  const f0 = existing || { id: uid(), name: name || '', brand: '', kcal: null, p: null, c: null, f: null, servingG: null, servingLabel: '', source: 'custom', archived: false, createdAt: Date.now() };
+  openSheet(existing ? 'Editar alimento' : 'Nuevo alimento', (body, close) => {
+    let source = f0.source === 'ai' ? 'ai' : f0.source === 'off' ? 'off' : 'custom';
+    const nm = h('input', { type: 'text', value: f0.name, placeholder: 'Tortilla de maíz (tortillería)', autocomplete: 'off' });
+    const br = h('input', { type: 'text', value: f0.brand || '', placeholder: 'opcional' });
+    const k = numInput(f0.kcal, { step: '0.1', min: 0, max: 900 }), p = numInput(f0.p, { step: '0.1', min: 0, max: 100 }), c = numInput(f0.c, { step: '0.1', min: 0, max: 100 }), f = numInput(f0.f, { step: '0.1', min: 0, max: 100 });
+    const derive = h('input', { type: 'checkbox', id: 'derive' });
+    const sg = numInput(f0.servingG, { step: '1', min: 0, placeholder: 'g (opcional)' }), sl = h('input', { type: 'text', value: f0.servingLabel || '', placeholder: '1 tortilla chica' });
+    const msg = h('div'), aiBox = h('div');
+    const touched = () => { if (source === 'ai') { source = 'custom'; aiBox.replaceChildren(); } };
+    [k, p, c, f].forEach((el) => el.addEventListener('input', touched));
+    body.append(field('Nombre', nm), field('Marca', br),
+      h('p', { class: 'sub' }, 'Valores por cada 100 g (como vienen en la etiqueta).'),
+      h('div', { class: 'grid2' }, field('Calorías (kcal)', k), field('Proteína (g)', p)), h('div', { class: 'grid2' }, field('Carbohidratos (g)', c), field('Grasa (g)', f)),
+      h('label', { class: 'check', for: 'derive' }, derive, h('span', null, 'Calcular las calorías a partir de los macros (4·P + 4·C + 9·G).')),
+      h('div', { class: 'grid2' }, field('Porción habitual (g)', sg), field('Descripción de la porción', sl)), aiBox);
+    if (S.caps.sample) {
+      const btn = h('button', { class: 'btn block', type: 'button' }, 'Estimar los macros con Claude');
+      btn.onclick = async () => {
+        const n = nm.value.trim(); if (!n) { msg.replaceChildren(notice('bad', 'Escribe primero el nombre del alimento.')); return; }
+        btn.disabled = true; btn.replaceChildren(h('span', { class: 'spin' }), ' Estimando…'); msg.replaceChildren();
+        try {
+          const r = await S.caps.sample.json(`Estima los valores nutricionales por 100 g de este alimento tal como se consume habitualmente en México: «${n}»${br.value.trim() ? ' (marca: ' + br.value.trim() + ')' : ''}. Responde SOLO un objeto JSON con números: {"kcal": number, "protein": number, "carbs": number, "fat": number, "servingG": number|null, "servingLabel": string|null}. Usa valores típicos realistas; kcal debe ser coherente con 4·proteína + 4·carbohidratos + 9·grasa.`, { modelTier: 'quick' });
+          const fk = ['kcal', 'protein', 'carbs', 'fat'].every((x) => isNum(Number(r[x])));
+          if (!fk) throw { code: 'invalid_json' };
+          k.value = Math.round(r.kcal * 10) / 10; p.value = Math.round(r.protein * 10) / 10; c.value = Math.round(r.carbs * 10) / 10; f.value = Math.round(r.fat * 10) / 10;
+          if (isNum(Number(r.servingG)) && r.servingG > 0 && !sg.value) { sg.value = Math.round(r.servingG); if (r.servingLabel && !sl.value) sl.value = String(r.servingLabel); }
+          source = 'ai';
+          aiBox.replaceChildren(notice('warn', 'Estimación de una IA con valores típicos, no de una etiqueta ni de una base de datos. Revísala; si la editas, se guarda como valor tuyo.'));
+        } catch (e) {
+          msg.replaceChildren(notice('bad', e && e.code === 'not_granted' ? 'No diste permiso para usar Claude en esta página.' : e && e.code === 'rate_limited' ? 'Demasiadas consultas seguidas; intenta en un rato.' : 'No pude obtener una estimación. Captura los valores a mano.'));
+        } finally { btn.disabled = false; btn.replaceChildren('Estimar los macros con Claude'); }
+      };
+      body.append(btn);
+    }
+    body.append(msg, h('div', { class: 'btn-row' },
+      existing ? h('button', { class: 'btn danger', type: 'button', onclick: () => {
+        if (foodUsed(existing.id)) { saveFood({ ...existing, archived: true }); toast('Archivado: ya está en tu registro o en una receta, así que se conserva oculto.', 4000); }
+        else { removeFood(existing.id); toast('Alimento eliminado'); }
+        close();
+      } }, 'Borrar / archivar') : null,
+      h('button', { class: 'btn primary', type: 'button', onclick: () => {
+        const pv = num(p.value), cv = num(c.value), fv = num(f.value);
+        const kv = derive.checked && pv != null && cv != null && fv != null ? Math.round(kcalFromMacros(pv, cv, fv) * 10) / 10 : num(k.value);
+        const food = { ...f0, name: nm.value.trim(), brand: br.value.trim() || null, kcal: kv, p: pv, c: cv, f: fv, servingG: num(sg.value) || null, servingLabel: sl.value.trim() || null, source: existing && existing.source === 'recipe' ? 'recipe' : source };
+        const errs = validateFood(food);
+        if (errs.length) { msg.replaceChildren(notice('bad', errs.join(' '))); return; }
+        const warn = kcalMismatch(food.kcal, food.p, food.c, food.f);
+        saveFood(food); if (existing) recomputeDependents(food.id);
+        close(); toast(warn ? `Guardado, pero las kcal (${fmt0(food.kcal)}) no cuadran con los macros (${fmt0(kcalFromMacros(food.p, food.c, food.f))}).` : 'Alimento guardado', warn ? 4500 : 2600);
+        if (onSaved) onSaved(food);
+      } }, 'Guardar')));
+    setTimeout(() => nm.focus(), 50);
+  });
+}
+function foodUsed(id) {
+  for (const d of Object.values(S.days)) if ((d.entries || []).some((e) => e.foodId === id)) return true;
+  return foodList().some((f) => f.recipe && f.recipe.items.some((i) => i.foodId === id));
+}
+
+/* ===== VISTA ALIMENTOS Y RECETAS ===== */
+function recipePer100(items, yieldG) {
+  let t = { kcal: 0, p: 0, c: 0, f: 0 };
+  for (const it of items) { const f = S.foods[it.foodId]; if (!f) continue; const m = per(f, it.grams); t = { kcal: t.kcal + m.kcal, p: t.p + m.p, c: t.c + m.c, f: t.f + m.f }; }
+  const k = 100 / yieldG;
+  return { kcal: t.kcal * k, p: t.p * k, c: t.c * k, f: t.f * k };
+}
+function recipeDependsOn(rootId, targetId, seen = new Set()) {
+  if (seen.has(rootId)) return false; seen.add(rootId);
+  const r = S.foods[rootId]; if (!r || !r.recipe) return false;
+  return r.recipe.items.some((i) => i.foodId === targetId || recipeDependsOn(i.foodId, targetId, seen));
+}
+function recomputeDependents(foodId, seen = new Set()) {
+  for (const r of foodList()) {
+    if (!r.recipe || seen.has(r.id) || !r.recipe.items.some((i) => i.foodId === foodId)) continue;
+    seen.add(r.id);
+    const m = recipePer100(r.recipe.items, r.recipe.yieldG), sg = r.recipe.yieldG / r.recipe.servings;
+    saveFood({ ...r, kcal: m.kcal, p: m.p, c: m.c, f: m.f, servingG: sg, servingLabel: `1 porción (~${Math.round(sg)} g)` });
+    recomputeDependents(r.id, seen);
+  }
+}
+
+function openRecipeEditor(existing) {
+  const draft = existing ? { id: existing.id, name: existing.name, items: clone(existing.recipe.items), yieldG: existing.recipe.yieldG, servings: existing.recipe.servings }
+    : { id: uid(), name: '', items: [], yieldG: null, servings: 1 };
+  openSheet(existing ? 'Editar receta' : 'Nueva receta', (body, close) => {
+    const nm = h('input', { type: 'text', value: draft.name, placeholder: 'Tacos de frijol con queso', autocomplete: 'off' });
+    nm.addEventListener('input', () => { draft.name = nm.value; });
+    const q = h('input', { type: 'search', placeholder: 'Buscar ingrediente en tus alimentos…', autocomplete: 'off', 'aria-label': 'Buscar ingrediente' });
+    const results = h('div', { class: 'list' }), itemsBox = h('div'), preview = h('div', { class: 'sub num' }), msg = h('div');
+    const yieldIn = numInput(draft.yieldG, { step: '5', min: 0 }), servIn = numInput(draft.servings, { step: '0.5', min: 0 });
+    let yieldTouched = !!existing;
+    yieldIn.addEventListener('input', () => { yieldTouched = true; draw(); }); servIn.addEventListener('input', draw);
+    const rawTotal = () => draft.items.reduce((s, i) => s + i.grams, 0);
+
+    function showResults() {
+      results.replaceChildren();
+      const query = q.value.trim(); if (!query) return;
+      const found = searchFoods(query, { exclude: draft.id, limit: 6 }).filter((f) => !(f.recipe && recipeDependsOn(f.id, draft.id)));
+      if (!found.length) { results.append(h('div', { class: 'sub', style: 'padding:8px 0' }, 'Sin resultados. Crea el ingrediente en la pestaña Alimentos y vuelve.')); return; }
+      found.forEach((f) => results.append(h('button', { class: 'row', type: 'button', onclick: () => choose(f) },
+        h('div', { class: 'main' }, h('div', { class: 'name' }, foodLabel(f)), h('div', { class: 'meta num' }, fmt0(f.kcal) + ' kcal por 100 g')), h('div', { class: 'end' }, '+'))));
+    }
+    function choose(f) {
+      results.replaceChildren();
+      const g = numInput(100, { step: '5', min: 0 });
+      results.append(h('div', { class: 'card', style: 'background:var(--bg)' }, h('b', null, f.name), field('Gramos (peso crudo)', g),
+        h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: showResults }, 'Atrás'),
+          h('button', { class: 'btn primary', type: 'button', onclick: () => { const v = num(g.value); if (!(v > 0)) { toast('Escribe los gramos.'); return; } draft.items.push({ foodId: f.id, grams: v }); q.value = ''; results.replaceChildren(); draw(); } }, 'Agregar'))));
+      g.focus();
+    }
+    q.addEventListener('input', showResults);
+
+    function draw() {
+      itemsBox.replaceChildren();
+      if (!draft.items.length) itemsBox.append(h('p', { class: 'sub' }, 'Aún no hay ingredientes. Busca arriba y agrégalos con su peso crudo.'));
+      draft.items.forEach((it, idx) => {
+        const f = S.foods[it.foodId];
+        const g = numInput(Math.round(it.grams * 10) / 10, { step: '5', min: 0 }); g.style.maxWidth = '110px'; g.setAttribute('aria-label', 'Gramos de ' + (f ? f.name : 'ingrediente'));
+        g.addEventListener('input', () => { const v = num(g.value); if (v > 0) { it.grams = v; refreshPreview(); } });
+        itemsBox.append(h('div', { class: 'row', style: 'cursor:default' }, h('div', { class: 'main' }, h('div', { class: 'name' }, f ? f.name : '(alimento eliminado)'), h('div', { class: 'meta' }, f ? fmt0(f.kcal) + ' kcal / 100 g' : '')), g,
+          h('button', { class: 'btn ghost sm', type: 'button', 'aria-label': 'Quitar', onclick: () => { draft.items.splice(idx, 1); draw(); } }, 'Quitar')));
+      });
+      if (!yieldTouched) yieldIn.value = draft.items.length ? Math.round(rawTotal()) : '';
+      refreshPreview();
+    }
+    function refreshPreview() {
+      const y = num(yieldIn.value) || rawTotal(), sv = num(servIn.value) || 1;
+      if (!draft.items.length || !(y > 0)) { preview.textContent = ''; return; }
+      const m = recipePer100(draft.items, y), s = per(m, y / sv);
+      preview.textContent = `Por 100 g: ${fmt0(m.kcal)} kcal · P ${fmt1(m.p)} · C ${fmt1(m.c)} · G ${fmt1(m.f)}   |   Por porción (~${fmt0(y / sv)} g): ${fmt0(s.kcal)} kcal · P ${fmt1(s.p)} · C ${fmt1(s.c)} · G ${fmt1(s.f)}`;
+    }
+    body.append(field('Nombre de la receta', nm), h('h3', null, 'Ingredientes'), q, results, itemsBox,
+      h('div', { class: 'grid2' }, field('Peso final del platillo (g)', yieldIn, 'Pésalo ya cocido; si pierde agua, las macros por 100 g suben.'), field('Porciones que rinde', servIn)), preview, msg,
+      h('div', { class: 'btn-row' },
+        existing ? h('button', { class: 'btn danger', type: 'button', onclick: () => {
+          if (foodUsed(existing.id)) { saveFood({ ...existing, archived: true }); toast('Receta archivada: ya está en tu registro.', 3600); } else { removeFood(existing.id); toast('Receta eliminada'); }
+          close();
+        } }, 'Borrar / archivar') : null,
+        h('button', { class: 'btn primary', type: 'button', onclick: () => {
+          const y = num(yieldIn.value) || rawTotal(), sv = num(servIn.value);
+          const fail = (t) => msg.replaceChildren(notice('bad', t));
+          if (!draft.name.trim()) return fail('La receta necesita un nombre.');
+          if (!draft.items.length) return fail('Agrega al menos un ingrediente.');
+          if (!(y > 0) || !(sv > 0)) return fail('El peso final y las porciones deben ser mayores que 0.');
+          const m = recipePer100(draft.items, y), sg = y / sv;
+          const food = { id: draft.id, name: draft.name.trim(), brand: null, kcal: m.kcal, p: m.p, c: m.c, f: m.f, servingG: sg, servingLabel: `1 porción (~${Math.round(sg)} g)`,
+            source: 'recipe', archived: false, recipe: { items: draft.items, yieldG: y, servings: sv }, createdAt: existing ? existing.createdAt : Date.now() };
+          const errs = validateFood(food); if (errs.length) return fail('Los valores de la receta no son plausibles: ' + errs.join(' '));
+          saveFood(food); recomputeDependents(food.id); close(); toast('Receta guardada');
+        } }, 'Guardar receta')));
+    draw();
+  });
+}
+
+function viewFoods() {
+  const root = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
+  root.append(h('div', { class: 'card-title' }, h('h2', null, 'Mis alimentos'), h('span', { class: 'sub' }, foodList().filter((f) => !f.archived).length + ' guardados')),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn primary', type: 'button', onclick: () => openFoodForm(null) }, '+ Alimento'),
+      h('button', { class: 'btn', type: 'button', onclick: () => openRecipeEditor(null) }, '+ Receta')));
+  const q = h('input', { type: 'search', placeholder: 'Buscar entre tus alimentos…', autocomplete: 'off', 'aria-label': 'Buscar', value: S.foodQuery || '' });
+  const chips = h('div', { class: 'chips', role: 'group' }, [['all', 'Todos'], ['custom', 'Míos'], ['recipe', 'Recetas'], ['ai', 'Estimados por IA']].map(([v, l]) =>
+    h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.foodFilter === v), onclick: () => { S.foodFilter = v; render(); } }, l)));
+  const list = h('div', { class: 'list' });
+  const draw = () => {
+    S.foodQuery = q.value;
+    const tokens = norm(q.value).split(' ').filter(Boolean);
+    const items = foodList().filter((f) => (S.showArchived || !f.archived) && (S.foodFilter === 'all' || f.source === S.foodFilter) && tokens.every((t) => norm(f.name + ' ' + (f.brand || '')).includes(t)))
+      .sort((a, b) => norm(a.name).localeCompare(norm(b.name)));
+    list.replaceChildren();
+    if (!items.length) list.append(h('div', { class: 'empty' }, h('span', null, foodList().length ? 'Nada coincide con tu búsqueda.' : 'Aquí vivirán tus alimentos y recetas. Crea el primero con «+ Alimento».')));
+    items.forEach((f) => list.append(h('button', { class: 'row', type: 'button', onclick: () => (f.recipe ? openRecipeEditor(f) : openFoodForm(f)) },
+      h('div', { class: 'main' }, h('div', { class: 'name' }, foodLabel(f), f.archived ? h('span', { class: 'tag' }, 'archivado') : null),
+        h('div', { class: 'meta num' }, `P ${fmt1(f.p)} · C ${fmt1(f.c)} · G ${fmt1(f.f)} por 100 g${f.servingG ? ' · porción ' + fmt0(f.servingG) + ' g' : ''}`)),
+      h('div', { class: 'end' }, fmt0(f.kcal) + ' kcal'))));
+  };
+  q.addEventListener('input', draw);
+  root.append(q, chips, h('section', { class: 'card' }, list));
+  draw();
+  root.append(h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: S.showArchived, onchange: (e) => { S.showArchived = e.target.checked; render(); } }), h('span', null, 'Mostrar archivados')),
+    notice('info', 'En esta versión no hay búsqueda en Open Food Facts (la página no puede salir a internet). Tus alimentos se guardan aquí, y al crear uno puedes pedirle a Claude una estimación de macros, que queda marcada como estimada.'));
+  return root;
+}
+
+/* ===== VISTA METAS: perfil, meta por fórmula y adaptación ===== */
+function viewGoals() {
+  const p = S.profile, body = bodyState(), today = todayIso(), root = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
+  root.append(h('div', null, h('h2', null, 'Perfil y metas'), h('p', { class: 'sub' }, 'Las fórmulas son solo el punto de partida; con tus datos reales la app estima tu gasto verdadero.')));
+  if (!p) root.append(notice('info', 'Empieza aquí: llena tu perfil y tu peso. Con eso calculo tu meta inicial.'));
+
+  /* formulario de perfil */
+  const sexV = { v: p ? p.sex : 'M' };
+  const birth = h('input', { type: 'date', value: p ? p.birth : '', max: today });
+  const height = numInput(p ? p.heightCm : '', { step: '0.5', min: 120, max: 230, placeholder: 'cm' });
+  const activity = select(Object.entries(ACTIVITY_LABEL), p ? p.activity : 'light');
+  const goalSel = select(Object.entries(GOAL_LABEL), p ? p.goal : 'maintain');
+  const rate = numInput(p ? p.rate : 0.25, { step: '0.05', min: 0, max: 1.5 });
+  const weight = numInput('', { step: '0.1', min: 30, max: 300, placeholder: body.weight ? 'último: ' + fmt1(body.weight) : 'obligatorio la 1.ª vez' });
+  const bf = numInput('', { step: '0.1', min: 3, max: 60, placeholder: body.bf ? 'último: ' + fmt1(body.bf) : 'si no lo conoces, déjalo vacío' });
+  const bfSrc = select([['self_estimate', 'estimado por ti'], ['measured', 'medido (báscula, plicómetro, DEXA…)']], 'self_estimate');
+  const pMin = numInput(p ? p.pMin : 1.6, { step: '0.1', min: 0.5, max: 4 }), pMax = numInput(p ? p.pMax : 2.2, { step: '0.1', min: 0.5, max: 4 });
+  const fatMin = numInput(p ? p.fatMin : 0.6, { step: '0.1', min: 0, max: 2 }), fatPct = numInput(p ? Math.round(p.fatPct * 100) : 25, { step: '1', min: 0, max: 60 });
+  const minK = numInput(p ? p.minValidKcal : CFG.defaultMinValidKcal, { step: '50', min: 0 });
+  const mif = h('input', { type: 'checkbox', id: 'mif', checked: !!(p && p.mifflinOnly) });
+  const msg = h('div');
+  const form = h('details', { class: 'card', open: !p ? true : null }, h('summary', null, p ? 'Editar mi perfil' : 'Mi perfil'),
+    h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Sexo'), segmented([['M', 'Hombre'], ['F', 'Mujer']], sexV.v, (v) => { sexV.v = v; })),
+    h('div', { class: 'grid2' }, field('Fecha de nacimiento', birth), field('Estatura (cm)', height)),
+    field('Nivel de actividad', activity), h('div', { class: 'grid2' }, field('Objetivo', goalSel), field('Ritmo (kg/semana)', rate, 'Se ignora al mantener. Razonable: 0.25–0.5 al perder; 0.1–0.25 al ganar masa.')),
+    h('p', { class: 'lbl', style: 'margin-top:2px' }, 'Peso y composición actuales (se guardan como el registro de hoy)'),
+    h('div', { class: 'grid2' }, field('Peso (kg)', weight), field('% de grasa (opcional)', bf)), field('Origen del % de grasa', bfSrc, 'Sé honesto con el origen: una estimación a ojo no tiene la precisión de una medición.'),
+    h('details', null, h('summary', null, 'Opciones avanzadas'),
+      h('div', { style: 'display:flex;flex-direction:column;gap:12px;padding-top:6px' },
+        h('div', { class: 'grid2' }, field('Proteína mín. (g/kg)', pMin), field('Proteína máx. (g/kg)', pMax)),
+        h('div', { class: 'grid2' }, field('Grasa mínima (g/kg)', fatMin), field('Grasa objetivo (% de las kcal)', fatPct, 'La grasa será el mayor entre este % y el mínimo por kg; el resto son carbohidratos.')),
+        field('Calorías mínimas para contar un día', minK, 'Un día con menos calorías registradas se considera incompleto y no entra al promedio que estima tu gasto.'),
+        h('label', { class: 'check', for: 'mif' }, mif, h('span', null, 'Usar siempre Mifflin-St Jeor (ignorar mi % de grasa en el cálculo). Útil si ese % es solo una estimación.')))),
+    msg, h('button', { class: 'btn primary block', type: 'button', onclick: () => {
+      const fail = (t) => msg.replaceChildren(notice('bad', t));
+      const ht = num(height.value), wv = num(weight.value), bfv = num(bf.value), rt = num(rate.value) ?? 0, lo = num(pMin.value), hi = num(pMax.value), fm = num(fatMin.value), fp = num(fatPct.value), mk = num(minK.value);
+      if (!birth.value) return fail('Falta tu fecha de nacimiento.');
+      const age = ageOn(birth.value, today); if (age < 14 || age > 100) return fail('Revisa la fecha de nacimiento (la edad debe estar entre 14 y 100 años).');
+      if (!(ht >= 120 && ht <= 230)) return fail('La estatura debe estar entre 120 y 230 cm.');
+      if (wv == null && body.weight == null) return fail('Necesito al menos un peso para calcular tus metas.');
+      if (wv != null && !(wv >= 30 && wv <= 300)) return fail('El peso debe estar entre 30 y 300 kg.');
+      if (bfv != null && !(bfv >= 3 && bfv <= 60)) return fail('El % de grasa debe estar entre 3 y 60.');
+      if (!(rt >= 0 && rt <= 1.5)) return fail('El ritmo debe estar entre 0 y 1.5 kg/semana.');
+      if (!(lo > 0 && hi >= lo)) return fail('La proteína máxima no puede ser menor que la mínima.');
+      if (fm == null || fm < 0 || fp == null || fp < 0 || fp >= 100 || mk == null || mk < 0) return fail('Revisa las opciones avanzadas: hay valores vacíos o fuera de rango.');
+      const hadTarget = S.targets.length > 0;
+      saveProfile({ sex: sexV.v, birth: birth.value, heightCm: ht, activity: activity.value, goal: goalSel.value, rate: goalSel.value === 'maintain' ? 0 : rt, pMin: lo, pMax: hi, fatMin: fm, fatPct: fp / 100, minValidKcal: mk, mifflinOnly: mif.checked });
+      if (wv != null || bfv != null) saveDay(today, (d) => { if (wv != null) d.weight = wv; if (bfv != null) { d.bf = bfv; d.bfSource = bfSrc.value; } });
+      if (!hadTarget) { const pl = buildPlan(); if (pl) { saveTarget(pl, pl.calories.kcal, 'formula', 'Meta inicial por fórmula'); toast('Perfil guardado y meta inicial creada.'); return; } }
+      toast('Perfil guardado.');
+    } }, p ? 'Guardar cambios' : 'Guardar perfil'));
+  root.append(form);
+
+  const plan = buildPlan(today);
+  if (!plan) { if (p) root.append(notice('info', 'Falta un peso para calcular tus metas. Regístralo en «Hoy» o en el perfil.')); return root; }
+
+  /* meta por fórmula */
+  const card = h('section', { class: 'card' }, h('h2', null, 'Meta por fórmula'));
+  card.append(plan.bmr.method === 'katch_mcardle'
+    ? notice('info', 'Gasto basal calculado con ', h('b', null, 'Katch-McArdle'), ', porque hay un % de grasa registrado (', fmt1(plan.body.bf), ' %).')
+    : notice('info', 'Gasto basal calculado con ', h('b', null, 'Mifflin-St Jeor'), plan.profile.mifflinOnly ? ' (lo forzaste).' : ' (no hay % de grasa registrado).'));
+  card.append(h('div', { class: 'kpis' },
+    h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Gasto basal'), h('div', { class: 'v num' }, fmt0(plan.bmr.kcal) + ' kcal')),
+    h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Gasto total estimado'), h('div', { class: 'v num' }, fmt0(plan.tdee) + ' kcal')),
+    h('div', { class: 'kpi', style: 'grid-column:1/-1' }, h('div', { class: 'l' }, 'Meta calórica'), h('div', { class: 'v num' }, fmt0(plan.calories.kcal) + ' kcal'),
+      h('div', { class: 'sub num' }, `${plan.calories.adjustment >= 0 ? '+' : '−'}${fmt0(Math.abs(plan.calories.adjustment))} kcal respecto al gasto`))));
+  plan.notes.forEach((c) => card.append(notice(c === 'floor_applied' || c === 'no_recent_weight' ? 'warn' : 'info', PLAN_NOTES[c](plan))));
+  plan.macros.flags.forEach((fl) => card.append(notice('warn', MACRO_FLAG_TEXT[fl])));
+  const m = plan.macros;
+  card.append(h('div', { class: 'list' },
+    ...[['Proteína', m.protein, `rango ${fmt0(m.proteinRange[0])}–${fmt0(m.proteinRange[1])} g (${plan.profile.pMin}–${plan.profile.pMax} g/kg sobre ${fmt1(plan.ref)} kg)`],
+      ['Grasa', m.fat, `mínimo ${fmt0(m.fatFloor)} g (${plan.profile.fatMin} g/kg)`], ['Carbohidratos', m.carbs, 'el resto de las calorías']]
+      .map(([l, v, d]) => h('div', { class: 'row', style: 'cursor:default' }, h('div', { class: 'main' }, h('div', { class: 'name' }, l), h('div', { class: 'meta' }, d)), h('div', { class: 'end' }, fmt0(v) + ' g')))));
+  if (plan.ref < plan.body.weight - 0.05) card.append(h('p', { class: 'sub' }, 'La proteína se calcula sobre un peso de referencia menor que tu peso real porque tu % de grasa es alto, para que el rango en g/kg no se infle por la grasa corporal.'));
+  const active = targetOn(today);
+  const srcL = { formula: 'fórmula', data: 'ajuste por datos', manual: 'manual' };
+  card.append(active ? h('p', { class: 'sub' }, `Meta vigente desde ${fmtDMY(active.from)}: `, h('b', null, fmt0(active.kcal) + ' kcal'), ` (P ${fmt0(active.p)} · C ${fmt0(active.c)} · G ${fmt0(active.f)} g; origen: ${srcL[active.source]}).`)
+    : notice('warn', 'Todavía no tienes una meta vigente. Establece la calculada para registrar contra ella.'));
+  card.append(h('button', { class: active ? 'btn block' : 'btn primary block', type: 'button', onclick: () => { saveTarget(plan, plan.calories.kcal, 'formula', 'Calculada por fórmula'); toast('Meta vigente actualizada.'); } }, 'Establecer esta meta como vigente'));
+  const man = numInput(Math.round(plan.calories.kcal / 10) * 10, { step: '10', min: 800, max: 6000 });
+  const manMsg = h('div');
+  card.append(h('details', null, h('summary', null, 'Fijar una meta calórica manualmente'), h('div', { style: 'display:flex;flex-direction:column;gap:10px;padding-top:6px' }, field('Calorías por día', man), manMsg,
+    h('button', { class: 'btn block', type: 'button', onclick: () => {
+      const v = num(man.value); if (!(v >= 800 && v <= 6000)) { manMsg.replaceChildren(notice('bad', 'Escribe un valor entre 800 y 6,000 kcal.')); return; }
+      if (v < plan.bmr.kcal) toast(`Ojo: está por debajo de tu gasto basal estimado (${fmt0(plan.bmr.kcal)} kcal).`, 4200);
+      saveTarget(plan, v, 'manual', 'Fijada manualmente'); toast('Meta manual guardada.');
+    } }, 'Guardar meta manual'))));
+  root.append(card);
+
+  /* adaptación */
+  const ad = h('section', { class: 'card' }, h('h2', null, 'Adaptación con tus datos'));
+  ad.append(h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Ventana de análisis (días)'),
+    h('div', { class: 'chips' }, [14, 21, 28, 42].map((w) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.tdeeWindow === w), onclick: () => { S.tdeeWindow = w; render(); } }, String(w)))),
+    h('div', { class: 'hint' }, 'Ventanas largas dan más precisión pero menos actualidad. El día en curso no cuenta porque suele estar incompleto.')));
+  const st = adaptiveStatus(plan, S.tdeeWindow), d = st.data;
+  ad.append(h('div', { class: 'kpis' },
+    h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Gasto por fórmula'), h('div', { class: 'v num' }, fmt0(plan.tdee) + ' kcal')),
+    h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Gasto por datos'), h('div', { class: 'v num' }, d.ok ? fmt0(d.tdee) + ' kcal' : 'Sin datos'),
+      d.ok ? h('div', { class: 'sub num' }, `± ${fmt0(d.ciHalf)} (IC 95 %) · confianza ${CONF_LABEL[d.confidence]}`) : h('div', { class: 'sub' }, 'insuficientes'))));
+  if (!d.ok) {
+    ad.append(notice('warn', 'Todavía no hay suficientes registros para estimar tu gasto real, así que no muestro ningún número (con pocos datos sería falsa precisión). Qué falta:'));
+    ad.append(h('ul', { style: 'margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px' }, d.reasons.map((r) => h('li', null, REASON_TEXT[r](d)))));
+    const bar = (v, mx, label) => h('div', { style: 'display:flex;flex-direction:column;gap:4px' }, h('div', { class: 'sub' }, label), h('div', { class: 'meter' }, h('i', { style: `width:${Math.min(100, (v / mx) * 100)}%` })));
+    ad.append(bar(d.nFood, CFG.minFoodDays, `Días con comida: ${d.nFood}/${CFG.minFoodDays}`), bar(d.nWeighings, CFG.minWeighings, `Pesajes: ${d.nWeighings}/${CFG.minWeighings}`),
+      h('p', { class: 'sub' }, `Ventana evaluada: ${fmtDMY(st.windowStart)} – ${fmtDMY(st.windowEnd)}.`));
+  } else {
+    ad.append(h('p', { class: 'sub' }, `Ventana ${fmtDMY(st.windowStart)} – ${fmtDMY(st.windowEnd)} · ${d.nFood} días de comida · ${d.nWeighings} pesajes · ingesta promedio ${fmt0(d.avgIntake)} kcal · tendencia de peso ${d.slope * 7 >= 0 ? '+' : '−'}${Math.abs(d.slope * 7).toFixed(2)} kg/semana.`));
+    if (d.confidence === 'low') ad.append(notice('warn', `Confianza baja: el intervalo (±${fmt0(d.ciHalf)} kcal) es amplio, típico de ventanas cortas o de peso muy variable. Tómalo como una pista, no como una medición; se afina con más semanas de registro.`));
+    const rec = st.rec;
+    if (rec.status === 'keep') {
+      ad.append(d.confidence === 'high'
+        ? notice('good', `Tu meta vigente (${fmt0(st.current)} kcal) es coherente con tu gasto real estimado (diferencia menor a 100 kcal). No hace falta ajustar.`)
+        : notice('info', `Sin cambios por ahora: tu gasto estimado por datos difiere en menos de 100 kcal del que asume tu meta (${fmt0(st.current)} kcal). Con el margen de error actual (±${fmt0(d.ciHalf)} kcal) esto significa «no hay evidencia para cambiarla», no «está confirmada».`));
+    } else {
+      ad.append(h('h3', null, 'Recomendación'), h('p', null, `Tu meta vigente (${fmt0(st.current)} kcal) asume un gasto de ≈ ${fmt0(rec.implied)} kcal; tus datos sugieren ≈ ${fmt0(d.tdee)} kcal. Meta ideal: `, h('b', null, fmt0(rec.ideal) + ' kcal'), '. Propuesta: ', h('b', null, fmt0(rec.recommended) + ' kcal'), ` (${rec.delta >= 0 ? '+' : '−'}${fmt0(Math.abs(rec.delta))}).`));
+      if (rec.limitedByStep) ad.append(h('p', { class: 'sub' }, 'El cambio se limita a ±250 kcal por revisión para no sobrerreaccionar a una estimación ruidosa; si la tendencia se confirma, se repetirá en la siguiente.'));
+      if (rec.limitedByFloor) ad.append(h('p', { class: 'sub' }, 'La meta ideal quedaría por debajo de tu gasto basal estimado, así que se respeta ese piso.'));
+      if (rec.withinNoise) ad.append(notice('warn', 'La diferencia con el gasto que asume tu meta actual es menor que el margen de error de la estimación: puede ser ruido. Considera esperar a tener más datos antes de aplicarla.'));
+      ad.append(h('button', { class: 'btn primary block', type: 'button', onclick: () => { saveTarget(plan, rec.recommended, 'data', `Ajuste por datos: gasto estimado ${Math.round(d.tdee)} ± ${Math.round(d.ciHalf)} kcal`); toast('Meta actualizada.'); } }, 'Aplicar como meta vigente desde hoy'));
+    }
+  }
+  ad.append(h('p', { class: 'sub' }, 'La evolución en el tiempo está en la pestaña Progreso.'));
+  root.append(ad);
+  return root;
+}
+
+/* ===== VISTA PROGRESO ===== */
+let CHARTS = [];
+const postRender = [];
+function destroyCharts() { CHARTS.forEach((c) => c.destroy()); CHARTS = []; postRender.length = 0; }
+function chartTheme() { return { ink2: cssVar('--ink2'), muted: cssVar('--muted'), grid: cssVar('--line'), s1: cssVar('--s1'), s2: cssVar('--s2'), s3: cssVar('--s3'), surface: cssVar('--surface') }; }
+function baseOpts(t, o = {}) {
+  return { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: !!o.legend, position: 'top', align: 'start', labels: { color: t.ink2, usePointStyle: true, boxWidth: 8, boxHeight: 8, filter: (i) => !i.text.startsWith('__') } },
+      tooltip: { callbacks: { title: o.title || undefined, label: o.label || undefined, filter: (i) => !i.dataset.label.startsWith('__') } } },
+    scales: { x: { grid: { display: false }, border: { color: t.grid }, ticks: { color: t.muted, maxTicksLimit: 6, autoSkip: true, maxRotation: 0 } },
+      y: { grid: { color: t.grid }, border: { display: false }, ticks: { color: t.muted }, title: { display: !!o.yTitle, text: o.yTitle, color: t.muted }, beginAtZero: !!o.zero } } };
+}
+const orNull = (a) => a.map((v) => (isNum(v) ? v : null));
+function chartBox(title, sub, tall) {
+  const canvas = h('canvas', { role: 'img', 'aria-label': title });
+  return { canvas, box: h('div', { class: 'chart-box' + (tall ? ' tall' : '') }, canvas), head: h('div', null, h('h3', null, title), h('p', { class: 'sub' }, sub)) };
+}
+function addChart(canvas, cfg) { postRender.push(() => { if (typeof Chart === 'undefined') return; CHARTS.push(new Chart(canvas, cfg)); }); }
+
+function rangeBounds() {
+  const today = todayIso(), r = S.range;
+  const keys = Object.keys(S.days).sort();
+  const earliest = keys.length ? keys[0] : addDays(today, -30);
+  if (r.preset === 'all') return [earliest, today];
+  if (r.preset === 'custom' && r.start && r.end && r.start <= r.end) return [r.start, r.end > today ? today : r.end];
+  const n = { 30: 30, 90: 90, 180: 182 }[r.preset] || 90;
+  return [addDays(today, -n), today];
+}
+
+function viewProgress() {
+  const today = todayIso(), [start, end] = rangeBounds(), fr = buildFrame(dataFor(), start, end, today), root = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
+  const chip = (v, l) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.range.preset === v), onclick: () => { S.range.preset = v; render(); } }, l);
+  root.append(h('h2', null, 'Progreso'), h('div', { class: 'chips', role: 'group', 'aria-label': 'Rango de fechas' }, chip('30', '30 días'), chip('90', '90 días'), chip('180', '6 meses'), chip('all', 'Todo'), chip('custom', 'Otro')));
+  if (S.range.preset === 'custom') {
+    const a = h('input', { type: 'date', value: S.range.start || start, max: today }), b = h('input', { type: 'date', value: S.range.end || end, max: today });
+    const apply = () => { S.range.start = a.value; S.range.end = b.value; render(); };
+    a.addEventListener('change', apply); b.addEventListener('change', apply);
+    root.append(h('div', { class: 'grid2' }, field('Desde', a), field('Hasta', b)));
+  }
+  const anyW = fr.weight.some(isNum), anyK = fr.kcal.some(isNum);
+  if (!anyW && !anyK) { root.append(h('section', { class: 'card' }, h('div', { class: 'empty' }, h('span', null, 'No hay registros en este rango. Empieza por «Hoy»: registra tu peso y tus comidas y aquí verás tu evolución.'), h('button', { class: 'btn primary', type: 'button', onclick: () => setTab('today') }, 'Ir a Hoy')))); return root; }
+
+  const ma = fr.ma7.filter(isNum), validDays = fr.valid.filter(Boolean).length, t = chartTheme();
+  root.append(h('div', { class: 'kpis' },
+    h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Peso (prom. 7 días)'), h('div', { class: 'v num' }, ma.length ? fmt1(ma[ma.length - 1]) + ' kg' : '—')),
+    h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Cambio en el rango'), h('div', { class: 'v num' }, ma.length > 1 ? (ma[ma.length - 1] - ma[0] >= 0 ? '+' : '−') + fmt1(Math.abs(ma[ma.length - 1] - ma[0])) + ' kg' : '—')),
+    h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Calorías prom. (días válidos)'), h('div', { class: 'v num' }, validDays ? fmt0(mean(fr.kcalValid.filter(isNum))) : '—')),
+    h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Días con comida válida'), h('div', { class: 'v num' }, `${validDays} de ${fr.dates.length}`))));
+  root.append(h('p', { class: 'sub' }, 'Los días sin pesar o sin registrar quedan en blanco: no se rellenan con ceros ni se inventan datos.'));
+  const labels = fr.dates.map(fmtDM), fullDate = (items) => fmtDMY(fr.dates[items[0].dataIndex]);
+
+  /* peso */
+  const wc = chartBox('Peso', 'Puntos: cada día. Línea: promedio móvil de 7 días (necesita ≥ 3 pesajes en la ventana).');
+  if (anyW) {
+    const dense = fr.weight.filter(isNum).length > 120;
+    addChart(wc.canvas, { type: 'line', data: { labels, datasets: [
+      { label: 'Peso diario', data: orNull(fr.weight), borderColor: t.muted, backgroundColor: t.muted, pointBackgroundColor: t.muted, pointBorderColor: t.surface, pointBorderWidth: 1.5, pointRadius: dense ? 0 : 3.5, showLine: dense, borderWidth: 1, spanGaps: false },
+      { label: 'Promedio móvil 7 días', data: orNull(fr.ma7), borderColor: t.s1, backgroundColor: t.s1, borderWidth: 2.5, pointRadius: 0, spanGaps: false }] },
+      options: baseOpts(t, { legend: true, yTitle: 'kg', title: fullDate, label: (c) => `${c.dataset.label}: ${fmt1(c.parsed.y)} kg` }) });
+  }
+  root.append(h('section', { class: 'card' }, wc.head, anyW ? wc.box : h('p', { class: 'sub' }, 'Sin pesajes en este rango.'),
+    tableView(['Fecha', 'Peso (kg)', 'Prom. 7 d'], fr.dates.map((d, i) => [fmtDMY(d), fmt1(fr.weight[i]), fmt1(fr.ma7[i])]).filter((_, i) => isNum(fr.weight[i]) || isNum(fr.ma7[i])))));
+
+  /* calorías por semana */
+  const weekly = weeklyIntake(fr.dates, fr.kcalValid).map((w) => { const i = fr.dates.indexOf(w.weekStart); const idx = i >= 0 ? i : 0; return { ...w, target: isNum(fr.targetKcal[idx]) ? fr.targetKcal[idx] : null }; });
+  const kc = chartBox('Calorías por semana', 'Promedio diario de cada semana usando solo días válidos. Las barras claras tienen menos de 4 días registrados: son menos fiables.');
+  if (weekly.length) {
+    const hasT = weekly.some((w) => w.target != null);
+    addChart(kc.canvas, { type: 'bar', data: { labels: weekly.map((w) => fmtDM(w.weekStart)), datasets: [
+      { type: 'bar', label: 'Calorías promedio', data: weekly.map((w) => w.meanKcal), backgroundColor: weekly.map((w) => (w.validDays >= 4 ? t.s1 : rgba(t.s1, 0.4))), borderRadius: 4, maxBarThickness: 30 },
+      ...(hasT ? [{ type: 'line', label: 'Meta', data: weekly.map((w) => w.target), borderColor: t.ink2, backgroundColor: t.ink2, borderWidth: 2, pointRadius: 0, stepped: 'before' }] : [])] },
+      options: { ...baseOpts(t, { legend: hasT, yTitle: 'kcal/día', zero: true, title: (items) => 'Semana del ' + fmtDMY(weekly[items[0].dataIndex].weekStart), label: (c) => c.dataset.type === 'line' ? `Meta: ${fmt0(c.parsed.y)} kcal` : `${fmt0(c.parsed.y)} kcal/día · ${weekly[c.dataIndex].validDays} días con registro` }) } });
+  }
+  root.append(h('section', { class: 'card' }, kc.head, weekly.length ? kc.box : h('p', { class: 'sub' }, 'Sin días de comida válidos en este rango.'),
+    tableView(['Semana', 'kcal/día', 'Días', 'Meta'], weekly.map((w) => [fmtDMY(w.weekStart), fmt0(w.meanKcal), String(w.validDays), w.target != null ? fmt0(w.target) : '—']))));
+
+  /* gasto por datos vs fórmula */
+  const keys = Object.keys(S.days).sort(), earliest = keys.length ? keys[0] : start;
+  const full = buildFrame(dataFor(), earliest < start ? earliest : start, end, today), F = full._full;
+  const form = S.profile ? formulaSeries(F, S.profile) : F.dates.map(() => null);
+  const roll = rollingTdee(F.weight, F.kcalValid, S.tdeeWindow);
+  const from = Math.max(0, F.dates.indexOf(start)), dts = F.dates.slice(from), pick = (a, f) => a.slice(from).map((x) => (x ? f(x) : null));
+  const hasData = roll.some(Boolean), hasForm = form.some(Boolean);
+  const tc = chartBox('Gasto estimado: datos vs fórmula', 'La banda es el intervalo de confianza al 95 % de la estimación por datos. Si es ancha, la estimación es poco precisa: no la trates como un número exacto.');
+  if (hasData || hasForm) {
+    addChart(tc.canvas, { type: 'line', data: { labels: dts.map(fmtDM), datasets: [
+      { label: '__hi', data: pick(roll, (x) => x.hi), borderWidth: 0, pointRadius: 0, fill: false },
+      { label: 'Intervalo 95 %', data: pick(roll, (x) => x.lo), borderWidth: 0, pointRadius: 0, backgroundColor: rgba(t.s1, 0.18), fill: '-1' },
+      { label: 'Por datos', data: pick(roll, (x) => x.tdee), borderColor: t.s1, backgroundColor: t.s1, borderWidth: 2.5, pointRadius: 0, spanGaps: false },
+      { label: 'Por fórmula', data: pick(form, (x) => x.tdee), borderColor: t.s2, backgroundColor: t.s2, borderWidth: 2.5, pointRadius: 0, spanGaps: false }] },
+      options: baseOpts(t, { legend: true, yTitle: 'kcal/día', title: (items) => fmtDMY(dts[items[0].dataIndex]), label: (c) => (c.dataset.label === 'Intervalo 95 %' ? `IC 95 %: ${fmt0(c.parsed.y)} – ${fmt0(c.chart.data.datasets[0].data[c.dataIndex])}` : `${c.dataset.label}: ${fmt0(c.parsed.y)} kcal`) }) });
+  }
+  root.append(h('section', { class: 'card' }, h('div', { class: 'card-title' }, h('div', null, tc.head.firstChild), h('div', { class: 'chips' }, [14, 21, 28, 42].map((w) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.tdeeWindow === w), onclick: () => { S.tdeeWindow = w; render(); } }, w + ' d')))),
+    tc.head.lastChild, hasData || hasForm ? tc.box : h('p', { class: 'sub' }, S.profile ? 'Sin datos suficientes en este rango.' : 'Guarda tu perfil en «Metas» para ver el gasto por fórmula.'),
+    hasForm && !hasData ? h('p', { class: 'sub' }, 'Aún no hay estimación por datos en este rango: se necesitan ≥ 14 días con 10 de comida válida y suficientes pesajes. Se muestra solo la fórmula.') : null,
+    tableView(['Fecha', 'Fórmula', 'Por datos', 'IC inf.', 'IC sup.'], dts.map((d, i) => [fmtDMY(d), form[from + i] ? fmt0(form[from + i].tdee) : '—', roll[from + i] ? fmt0(roll[from + i].tdee) : '—', roll[from + i] ? fmt0(roll[from + i].lo) : '—', roll[from + i] ? fmt0(roll[from + i].hi) : '—']).filter((r) => r[1] !== '—' || r[2] !== '—'))));
+
+  /* composición corporal (dos paneles: nunca eje doble) */
+  const anyL = fr.lean.some(isNum), anyBf = fr.bf.some(isNum);
+  const bcL = chartBox('Masa magra estimada', 'Peso suavizado × (1 − % de grasa interpolado entre mediciones). Si tus % son estimaciones, la masa magra hereda ese error.');
+  const bcB = chartBox('% de grasa registrado', 'Solo las mediciones que registraste.');
+  if (anyL) addChart(bcL.canvas, { type: 'line', data: { labels, datasets: [{ label: 'Masa magra', data: orNull(fr.lean), borderColor: t.s1, backgroundColor: t.s1, borderWidth: 2.5, pointRadius: 0, spanGaps: false }] }, options: (() => { const o = baseOpts(t, { yTitle: 'kg', title: fullDate, label: (c) => `${fmt1(c.parsed.y)} kg` }); o.scales.y.ticks.maxTicksLimit = 5; o.scales.y.ticks.callback = (v) => fmt1(v); return o; })() });
+  if (anyBf) addChart(bcB.canvas, { type: 'line', data: { labels, datasets: [{ label: '% de grasa', data: orNull(fr.bf), borderColor: t.s2, backgroundColor: t.s2, pointBackgroundColor: t.s2, pointBorderColor: t.surface, pointBorderWidth: 1.5, borderWidth: 2, pointRadius: 4, spanGaps: true }] }, options: (() => { const o = baseOpts(t, { yTitle: '%', title: fullDate, label: (c) => `${fmt1(c.parsed.y)} %` }); o.scales.y.ticks.maxTicksLimit = 5; o.scales.y.ticks.callback = (v) => fmt1(v); return o; })() });
+  root.append(h('section', { class: 'card' }, h('h2', null, 'Composición corporal'),
+    anyL ? [bcL.head, bcL.box] : null, anyBf ? [bcB.head, bcB.box] : null,
+    !anyL && !anyBf ? h('p', { class: 'sub' }, 'Registra un % de grasa (o medidas de cuello y cintura) en «Hoy» para ver la composición corporal.') : null,
+    tableView(['Fecha', '% grasa', 'Masa magra (kg)'], fr.dates.map((d, i) => [fmtDMY(d), fmt1(fr.bf[i]), fmt1(fr.lean[i])]).filter((_, i) => isNum(fr.bf[i]) || isNum(fr.lean[i])))));
+  return root;
+}
+
+/* ===== VISTA DATOS: exportar/importar CSV (mismo formato que la versión de escritorio) ===== */
+const CSV_TABLES = ['profile', 'body_log', 'foods', 'recipes', 'recipe_items', 'food_log', 'day_status', 'targets'];
+const csvEsc = (v) => { if (v == null) return ''; const s = String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const toCsv = (cols, rows) => '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => csvEsc(r[c])).join(','))].join('\n') + '\n';
+const isoTs = (ms) => (ms ? new Date(ms).toISOString().replace(/\.\d+Z$/, '+00:00') : '');
+
+function parseCsv(text) {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); cur = ''; if (row.some((c) => c !== '')) rows.push(row); row = []; }
+    else cur += ch;
+  }
+  if (cur !== '' || row.length) { row.push(cur); if (row.some((c) => c !== '')) rows.push(row); }
+  if (!rows.length) return { cols: [], rows: [] };
+  const cols = rows[0].map((c) => c.trim());
+  return { cols, rows: rows.slice(1).map((r) => Object.fromEntries(cols.map((c, i) => [c, (r[i] ?? '').trim()]))) };
+}
+
+function exportTables() {
+  const out = {}, p = S.profile, dayKeys = Object.keys(S.days).sort();
+  out.profile = toCsv(['sex', 'birth_date', 'height_cm', 'activity_level', 'goal', 'rate_kg_week', 'protein_g_kg_min', 'protein_g_kg_max', 'fat_g_kg_min', 'fat_pct_kcal', 'bmr_method_pref', 'min_valid_day_kcal', 'updated_at'],
+    p ? [{ sex: p.sex, birth_date: p.birth, height_cm: p.heightCm, activity_level: p.activity, goal: p.goal, rate_kg_week: p.rate, protein_g_kg_min: p.pMin, protein_g_kg_max: p.pMax, fat_g_kg_min: p.fatMin, fat_pct_kcal: p.fatPct, bmr_method_pref: p.mifflinOnly ? 'mifflin' : 'auto', min_valid_day_kcal: p.minValidKcal, updated_at: new Date().toISOString() }] : []);
+  out.body_log = toCsv(['date', 'weight_kg', 'body_fat_pct', 'body_fat_source', 'waist_cm', 'neck_cm', 'hip_cm', 'note'],
+    dayKeys.filter((k) => { const d = S.days[k]; return isNum(d.weight) || isNum(d.bf) || isNum(d.waist) || isNum(d.neck) || isNum(d.hip) || d.note; })
+      .map((k) => { const d = S.days[k]; return { date: k, weight_kg: d.weight, body_fat_pct: d.bf, body_fat_source: d.bfSource, waist_cm: d.waist, neck_cm: d.neck, hip_cm: d.hip, note: d.note }; }));
+  const foods = foodList().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  out.foods = toCsv(['uid', 'name', 'brand', 'source', 'barcode', 'kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g', 'serving_g', 'serving_label', 'data_flag', 'archived', 'off_fetched_at', 'created_at'],
+    foods.map((f) => ({ uid: f.id, name: f.name, brand: f.brand, source: f.source === 'ai' ? 'custom' : f.source, barcode: f.barcode, kcal_100g: f.kcal, protein_100g: f.p, carbs_100g: f.c, fat_100g: f.f,
+      serving_g: f.servingG, serving_label: f.servingLabel, data_flag: f.source === 'ai' ? 'ai_estimate' : null, archived: f.archived ? 1 : 0, off_fetched_at: null, created_at: isoTs(f.createdAt) })));
+  const recipes = foods.filter((f) => f.recipe);
+  out.recipes = toCsv(['food_uid', 'total_yield_g', 'servings'], recipes.map((f) => ({ food_uid: f.id, total_yield_g: f.recipe.yieldG, servings: f.recipe.servings })));
+  out.recipe_items = toCsv(['recipe_uid', 'ingredient_uid', 'grams'], recipes.flatMap((f) => f.recipe.items.map((i) => ({ recipe_uid: f.id, ingredient_uid: i.foodId, grams: i.grams }))));
+  out.food_log = toCsv(['uid', 'date', 'meal', 'food_uid', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'created_at'],
+    dayKeys.flatMap((k) => (S.days[k].entries || []).map((e) => ({ uid: e.id, date: k, meal: e.meal, food_uid: e.foodId, grams: e.grams, kcal: e.kcal, protein_g: e.p, carbs_g: e.c, fat_g: e.f, created_at: isoTs(e.at) }))));
+  out.day_status = toCsv(['date', 'food_complete'], dayKeys.filter((k) => typeof S.days[k].forced === 'boolean').map((k) => ({ date: k, food_complete: S.days[k].forced ? 1 : 0 })));
+  out.targets = toCsv(['effective_from', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'tdee_source', 'bmr_method', 'note'],
+    sortedTargets().map((t) => ({ effective_from: t.from, kcal: t.kcal, protein_g: t.p, carbs_g: t.c, fat_g: t.f, tdee_source: t.source, bmr_method: t.bmrMethod, note: t.note })));
+  return out;
+}
+
+/* Valida TODO antes de escribir. Devuelve { errors, plan } con plan = {profile, foods, days(parches), targets}. */
+function planImport(files) {
+  const errors = [], plan = { profile: null, foods: {}, dayPatches: {}, targets: [] };
+  const T = {}; // tablas parseadas
+  for (const [name, text] of Object.entries(files)) { try { T[name] = parseCsv(text); } catch (e) { errors.push(`${name}.csv: no se pudo leer (${e.message})`); } }
+  const need = (name, cols) => { if (!T[name]) return false; const miss = cols.filter((c) => !T[name].cols.includes(c)); if (miss.length) { errors.push(`${name}.csv: faltan columnas ${miss.join(', ')}`); return false; } return true; };
+  const rowCtx = (name, i) => {
+    const where = `${name}.csv fila ${i + 2}`;
+    return {
+      txt: (c, req) => { const v = T[name].rows[i][c] ?? ''; if (req && !v) errors.push(`${where}, columna '${c}': es obligatoria`); return v || null; },
+      n: (c, o = {}) => { let v = (T[name].rows[i][c] ?? ''); if (v === '') { if (o.req) errors.push(`${where}, columna '${c}': es obligatoria`); return null; }
+        if (/^-?\d+,\d+$/.test(v)) v = v.replace(',', '.'); const x = Number(v);
+        if (!Number.isFinite(x)) { errors.push(`${where}, columna '${c}': '${v}' no es un número`); return null; }
+        if (o.min != null && (x < o.min || (o.exMin && x === o.min))) { errors.push(`${where}, columna '${c}': ${x} fuera de rango`); return null; }
+        if (o.max != null && x > o.max) { errors.push(`${where}, columna '${c}': ${x} fuera de rango`); return null; } return x; },
+      date: (c) => { const v = T[name].rows[i][c] ?? ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(Date.parse(v))) { errors.push(`${where}, columna '${c}': '${v}' no es una fecha AAAA-MM-DD`); return null; } return v; },
+      pick: (c, opts, req = true) => { const v = T[name].rows[i][c] ?? ''; if (!v) { if (req) errors.push(`${where}, columna '${c}': es obligatoria`); return null; } if (!opts.includes(v)) { errors.push(`${where}, columna '${c}': '${v}' no es válido (${opts.join(', ')})`); return null; } return v; },
+    };
+  };
+  if (need('profile', ['sex', 'birth_date', 'height_cm', 'activity_level', 'goal']) && T.profile.rows.length) {
+    const r = rowCtx('profile', 0);
+    const o = { sex: r.pick('sex', ['M', 'F']), birth: r.date('birth_date'), heightCm: r.n('height_cm', { req: true, min: 0, exMin: true, max: 260 }), activity: r.pick('activity_level', Object.keys(ACTIVITY_FACTORS)), goal: r.pick('goal', ['maintain', 'gain', 'lose']),
+      rate: r.n('rate_kg_week', { min: 0 }) ?? 0, pMin: r.n('protein_g_kg_min', { min: 0, exMin: true }) ?? 1.6, pMax: r.n('protein_g_kg_max', { min: 0, exMin: true }) ?? 2.2, fatMin: r.n('fat_g_kg_min', { min: 0 }) ?? 0.6,
+      fatPct: r.n('fat_pct_kcal', { min: 0, max: 0.99 }) ?? 0.25, mifflinOnly: r.txt('bmr_method_pref') === 'mifflin', minValidKcal: r.n('min_valid_day_kcal', { min: 0 }) ?? 1000 };
+    if (o.pMax < o.pMin) errors.push("profile.csv fila 2, columna 'protein_g_kg_max': debe ser ≥ protein_g_kg_min");
+    plan.profile = o;
+  }
+  const patch = (iso) => (plan.dayPatches[iso] = plan.dayPatches[iso] || { entries: [] });
+  if (need('body_log', ['date'])) T.body_log.rows.forEach((_, i) => {
+    const r = rowCtx('body_log', i), d = r.date('date'), w = r.n('weight_kg', { min: 0, exMin: true, max: 500 }), bf = r.n('body_fat_pct', { min: 3, max: 60 });
+    const src = r.pick('body_fat_source', ['measured', 'self_estimate', 'navy'], false), wa = r.n('waist_cm', { min: 0, exMin: true, max: 300 }), nk = r.n('neck_cm', { min: 0, exMin: true, max: 300 }), hp = r.n('hip_cm', { min: 0, exMin: true, max: 300 });
+    if (bf != null && !src) errors.push(`body_log.csv fila ${i + 2}, columna 'body_fat_source': es obligatoria cuando hay body_fat_pct`);
+    if (d) Object.assign(patch(d), { body: { weight: w, bf, bfSource: bf != null ? src : null, waist: wa, neck: nk, hip: hp, note: r.txt('note') } });
+  });
+  if (need('foods', ['uid', 'name', 'kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g'])) T.foods.rows.forEach((_, i) => {
+    const r = rowCtx('foods', i), id = r.txt('uid', true), name = r.txt('name', true), srcRaw = r.pick('source', ['custom', 'off', 'recipe'], false) || 'custom';
+    const food = { id, name, brand: r.txt('brand'), kcal: r.n('kcal_100g', { req: true, min: 0, max: 900 }), p: r.n('protein_100g', { req: true, min: 0, max: 100 }), c: r.n('carbs_100g', { req: true, min: 0, max: 100 }), f: r.n('fat_100g', { req: true, min: 0, max: 100 }),
+      servingG: r.n('serving_g', { min: 0, exMin: true }), servingLabel: r.txt('serving_label'), source: srcRaw === 'custom' && r.txt('data_flag') === 'ai_estimate' ? 'ai' : srcRaw, archived: ['1', 'true', 'True'].includes(T.foods.rows[i].archived), createdAt: Date.parse(r.txt('created_at') || '') || Date.now() };
+    if (id && name && isNum(food.p) && isNum(food.c) && isNum(food.f) && food.p + food.c + food.f > 100.5) errors.push(`foods.csv fila ${i + 2}: proteína + carbohidratos + grasa suman más de 100 g por 100 g`);
+    if (id) plan.foods[id] = food;
+  });
+  const foodOf = (id) => plan.foods[id] || S.foods[id];
+  if (need('recipes', ['food_uid', 'total_yield_g'])) T.recipes.rows.forEach((_, i) => {
+    const r = rowCtx('recipes', i), id = r.txt('food_uid', true), y = r.n('total_yield_g', { req: true, min: 0, exMin: true }), sv = r.n('servings', { min: 0, exMin: true }) ?? 1;
+    if (!id) return; const f = foodOf(id); if (!f) { errors.push(`recipes.csv fila ${i + 2}, columna 'food_uid': el alimento '${id}' no existe`); return; }
+    plan.foods[id] = { ...(plan.foods[id] || f), source: 'recipe', recipe: { items: [], yieldG: y, servings: sv } };
+  });
+  if (need('recipe_items', ['recipe_uid', 'ingredient_uid', 'grams'])) T.recipe_items.rows.forEach((_, i) => {
+    const r = rowCtx('recipe_items', i), rid = r.txt('recipe_uid', true), iid = r.txt('ingredient_uid', true), g = r.n('grams', { req: true, min: 0, exMin: true });
+    if (!rid || !iid) return; const rec = plan.foods[rid];
+    if (!rec || !rec.recipe) { errors.push(`recipe_items.csv fila ${i + 2}, columna 'recipe_uid': la receta '${rid}' no está en recipes.csv`); return; }
+    if (!foodOf(iid)) { errors.push(`recipe_items.csv fila ${i + 2}, columna 'ingredient_uid': el ingrediente '${iid}' no existe`); return; }
+    rec.recipe.items.push({ foodId: iid, grams: g });
+  });
+  if (need('food_log', ['uid', 'date', 'meal', 'food_uid', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g'])) T.food_log.rows.forEach((_, i) => {
+    const r = rowCtx('food_log', i), id = r.txt('uid', true), d = r.date('date'), meal = r.pick('meal', MEALS), fid = r.txt('food_uid', true), g = r.n('grams', { req: true, min: 0, exMin: true });
+    const m = ['kcal', 'protein_g', 'carbs_g', 'fat_g'].map((c) => r.n(c, { req: true, min: 0 }));
+    if (fid && !foodOf(fid)) errors.push(`food_log.csv fila ${i + 2}, columna 'food_uid': el alimento '${fid}' no existe`);
+    if (id && d && meal && fid && foodOf(fid) && g && m.every(isNum)) { const f = foodOf(fid); patch(d).entries.push({ id, meal, foodId: fid, name: f.name, brand: f.brand || null, grams: g, kcal: m[0], p: m[1], c: m[2], f: m[3], at: Date.parse(r.txt('created_at') || '') || Date.now() }); }
+  });
+  if (need('day_status', ['date', 'food_complete'])) T.day_status.rows.forEach((_, i) => { const r = rowCtx('day_status', i), d = r.date('date'), v = r.pick('food_complete', ['0', '1'], false); if (d) patch(d).forced = v == null ? null : v === '1'; });
+  if (need('targets', ['effective_from', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'tdee_source'])) T.targets.rows.forEach((_, i) => {
+    const r = rowCtx('targets', i), d = r.date('effective_from'), k = r.n('kcal', { req: true, min: 0, exMin: true }), m = ['protein_g', 'carbs_g', 'fat_g'].map((c) => r.n(c, { req: true, min: 0 })), s = r.pick('tdee_source', ['formula', 'data', 'manual']);
+    if (d && k && s && m.every(isNum)) plan.targets.push({ from: d, kcal: k, p: m[0], c: m[1], f: m[2], source: s, bmrMethod: r.txt('bmr_method'), note: r.txt('note') });
+  });
+  return { errors, plan };
+}
+
+async function applyImport(plan, mode, onProgress) {
+  const ops = [];
+  if (mode === 'replace') {
+    Object.keys(S.days).forEach((k) => ops.push(() => S.backend.remove('days', k)));
+    foodList().forEach((f) => ops.push(() => S.backend.remove('foods', f.id)));
+    S.targets.forEach((t) => ops.push(() => S.backend.remove('targets', t.from)));
+    if (S.profile) ops.push(() => S.backend.remove('profile', 'main'));
+  }
+  const base = mode === 'replace' ? {} : S.days;
+  Object.values(plan.foods).forEach((f) => ops.push(() => S.backend.put('foods', f.id, f)));
+  for (const [iso, pt] of Object.entries(plan.dayPatches)) {
+    const doc = clone(base[iso] || { date: iso });
+    if (pt.body) for (const [k, v] of Object.entries(pt.body)) { if (v == null) delete doc[k]; else doc[k] = v; }
+    if (!isNum(doc.bf)) delete doc.bfSource;
+    if (pt.entries.length) { const map = new Map((doc.entries || []).map((e) => [e.id, e])); pt.entries.forEach((e) => map.set(e.id, e)); doc.entries = [...map.values()]; }
+    if ('forced' in pt) { if (pt.forced == null) delete doc.forced; else doc.forced = pt.forced; }
+    if (!isEmptyDay(doc)) ops.push(() => S.backend.put('days', iso, doc));
+  }
+  plan.targets.forEach((t) => ops.push(() => S.backend.put('targets', t.from, t)));
+  if (plan.profile) ops.push(() => S.backend.put('profile', 'main', plan.profile));
+  for (let i = 0; i < ops.length; i++) { await ops[i](); onProgress(i + 1, ops.length); if (i % 15 === 14) await new Promise((r) => setTimeout(r, 60)); }
+  return ops.length;
+}
+
+async function readUploads(fileList) {
+  const files = {};
+  for (const f of fileList) {
+    if (/\.zip$/i.test(f.name)) {
+      if (typeof JSZip === 'undefined') throw new Error('No se pudo cargar el lector de ZIP.');
+      const zip = await JSZip.loadAsync(await f.arrayBuffer());
+      for (const name of Object.keys(zip.files)) { const m = name.split('/').pop().match(/^(.+)\.csv$/i); if (m && CSV_TABLES.includes(m[1])) files[m[1]] = await zip.files[name].async('string'); }
+    } else { const m = f.name.match(/^(.+)\.csv$/i); if (m && CSV_TABLES.includes(m[1])) files[m[1]] = await f.text(); else throw new Error(`«${f.name}» no se reconoce: el nombre debe ser una de estas tablas .csv: ${CSV_TABLES.join(', ')}.`); }
+  }
+  return files;
+}
+
+function viewData() {
+  const root = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
+  const ndays = Object.keys(S.days).length, nentries = Object.values(S.days).reduce((s, d) => s + (d.entries || []).length, 0);
+  root.append(h('div', null, h('h2', null, 'Datos'), h('p', { class: 'sub' }, S.mode === 'cloud' ? 'Tus datos están en tu cuenta de Claude, privados para ti, y se sincronizan entre tus dispositivos.' : 'Tus datos están solo en este navegador. Si lo borras o cambias de dispositivo, se pierden: exporta un respaldo.')),
+    h('div', { class: 'kpis' }, h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Días con registro'), h('div', { class: 'v num' }, String(ndays))), h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Entradas de comida'), h('div', { class: 'v num' }, String(nentries)))));
+
+  const exMsg = h('div');
+  root.append(h('section', { class: 'card' }, h('h3', null, 'Exportar'), h('p', { class: 'sub' }, 'Un ZIP con un CSV por tabla, con el mismo formato que la versión de escritorio. Sirve de respaldo y para abrirlo en Excel, R o Python.'), exMsg,
+    h('button', { class: 'btn primary block', type: 'button', onclick: async (e) => {
+      const btn = e.currentTarget; btn.disabled = true;
+      try {
+        if (typeof JSZip === 'undefined') throw new Error('zip');
+        const zip = new JSZip(); const t = exportTables();
+        zip.file('manifest.json', JSON.stringify({ app: 'macro_tracker', schema_version: 1, exported_at: new Date().toISOString(), tables: CSV_TABLES, source: 'mobile' }, null, 2));
+        CSV_TABLES.forEach((n) => zip.file(n + '.csv', t[n]));
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+        const dl = S.caps.downloads;
+        if (!dl) { exMsg.replaceChildren(notice('warn', 'Esta vista no permite descargar archivos. Ábrela desde la app de Claude o desde claude.ai.')); return; }
+        await dl.save({ filename: `macro_tracker_${todayIso().replace(/-/g, '')}.zip`, data: blob });
+        exMsg.replaceChildren(notice('good', 'Respaldo guardado.'));
+      } catch (err) {
+        exMsg.replaceChildren(err && err.code === 'declined' ? notice('info', 'Cancelaste la descarga.') : notice('bad', 'No se pudo generar el archivo.'));
+      } finally { btn.disabled = false; }
+    } }, 'Descargar respaldo (ZIP)')));
+
+  const up = h('input', { type: 'file', accept: '.zip,.csv', multiple: true, id: 'upload' }), imMsg = h('div'), prog = h('div', { class: 'sub' });
+  // El mensaje se guarda en el estado: al importar cambian los datos, la pantalla se redibuja y de otro modo se perdería.
+  const showImport = (kind, text, list, more) => { S.importMsg = { kind, text, list, more }; paintImport(); };
+  const paintImport = () => { imMsg.replaceChildren(); const m = S.importMsg; if (!m) return; imMsg.append(notice(m.kind, m.text), m.list ? h('ul', { style: 'margin:8px 0 0;padding-left:20px;font-size:14px' }, m.list.map((x) => h('li', null, x))) : null, m.more ? h('p', { class: 'sub' }, m.more) : null); };
+  paintImport();
+  let mode = 'merge'; const confirmBox = h('input', { type: 'checkbox', id: 'confirm-replace' });
+  const confirmRow = h('label', { class: 'check', for: 'confirm-replace', hidden: true }, confirmBox, h('span', null, 'Entiendo que esto borra todo lo que tengo ahora y lo reemplaza por el archivo.'));
+  root.append(h('section', { class: 'card' }, h('h3', null, 'Importar'),
+    h('p', { class: 'sub' }, 'Acepta el ZIP de esta app (o de la versión de escritorio) o archivos CSV sueltos con el nombre de cada tabla. La importación es todo o nada: si una fila tiene un error, no se guarda nada y te digo dónde está.'),
+    field('Archivo', up), segmented([['merge', 'Combinar'], ['replace', 'Reemplazar todo']], mode, (v) => { mode = v; confirmRow.hidden = v !== 'replace'; }), confirmRow, imMsg, prog,
+    h('button', { class: 'btn block', type: 'button', onclick: async (e) => {
+      const btn = e.currentTarget; S.importMsg = null; paintImport(); prog.textContent = '';
+      if (!up.files.length) { showImport('warn', 'Elige primero un archivo.'); return; }
+      if (mode === 'replace' && !confirmBox.checked) { showImport('warn', 'Marca la casilla para confirmar el reemplazo.'); return; }
+      btn.disabled = true;
+      try {
+        const files = await readUploads(up.files);
+        if (!Object.keys(files).length) throw new Error('No encontré ninguna tabla reconocible en los archivos.');
+        const { errors, plan } = planImport(files);
+        if (errors.length) { showImport('bad', 'Importación cancelada; no se guardó nada.', errors.slice(0, 15), errors.length > 15 ? `… y ${errors.length - 15} errores más.` : null); return; }
+        const n = await write(() => applyImport(plan, mode, (i, tot) => { prog.textContent = `Guardando ${i} de ${tot}…`; }));
+        prog.textContent = ''; if (n) { showImport('good', 'Importación completada.'); toast('Importación completada'); } else showImport('bad', 'La importación se interrumpió; puede haber quedado a medias. Vuelve a importar en modo «Combinar» para completarla.');
+      } catch (err) { showImport('bad', err.message || 'No se pudo leer el archivo.'); } finally { btn.disabled = false; }
+    } }, 'Importar')));
+
+  const wipeBox = h('div');
+  root.append(h('section', { class: 'card' }, h('h3', null, 'Borrar todo'), h('p', { class: 'sub' }, 'Elimina tu perfil, registros, alimentos y metas. Exporta un respaldo antes.'), wipeBox,
+    h('button', { class: 'btn danger block', type: 'button', onclick: () => {
+      wipeBox.replaceChildren(notice('bad', 'Esto no se puede deshacer.'), h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: () => wipeBox.replaceChildren() }, 'Cancelar'),
+        h('button', { class: 'btn danger', type: 'button', onclick: async () => {
+          const ok = await write(async () => { for (const k of Object.keys(S.days)) await S.backend.remove('days', k); for (const f of foodList()) await S.backend.remove('foods', f.id); for (const t of S.targets) await S.backend.remove('targets', t.from); if (S.profile) await S.backend.remove('profile', 'main'); });
+          wipeBox.replaceChildren(); if (ok) toast('Se borraron todos tus datos.');
+        } }, 'Sí, borrar todo')));
+    } }, 'Borrar todos mis datos')));
+  return root;
+}
+
+/* ===== ARRANQUE ===== */
+const TABS = [['today', 'Hoy', viewToday], ['progress', 'Progreso', viewProgress], ['foods', 'Alimentos', viewFoods], ['goals', 'Metas', viewGoals], ['data', 'Datos', viewData]];
+function setTab(t) { if (t !== S.tab) S.importMsg = null; S.tab = t; window.scrollTo(0, 0); closeSheet(); render(); }
+function render() {
+  destroyCharts();
+  const view = $('#view'), tab = TABS.find((x) => x[0] === S.tab);
+  const ready = Object.values(S.loaded).every(Boolean);
+  try { view.replaceChildren(ready ? tab[2]() : h('div', { class: 'empty' }, h('span', { class: 'spin' }), h('span', null, 'Cargando tus datos…'))); }
+  catch (e) { console.error(e); view.replaceChildren(notice('bad', 'Algo falló al mostrar esta pantalla: ' + (e && e.message ? e.message : e) + '. Prueba con otra pestaña o recarga la página.')); }
+  $('#tabs').querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
+  $('#fab').hidden = !(ready && S.tab === 'today');
+  postRender.splice(0).forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });
+}
+function mountChrome() {
+  const tabs = $('#tabs');
+  TABS.forEach(([id, label]) => tabs.append(h('button', { class: 'tab', type: 'button', role: 'tab', 'data-tab': id, onclick: () => setTab(id) }, icon(id), h('span', null, label))));
+  $('#fab').addEventListener('click', () => addFoodSheet(S.date));
+  // el botón flotante se oculta mientras se escribe en un campo, para no tapar el formulario
+  document.addEventListener('focusin', (e) => { if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) $('#fab').classList.add('away'); });
+  document.addEventListener('focusout', () => $('#fab').classList.remove('away'));
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => render());
+  new MutationObserver(() => render()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+async function boot() {
+  mountChrome(); updateSync(); render();
+  S.backend = await openBackend(); S.mode = S.backend.mode; updateSync();
+  const fail = (e) => { console.error(e); S.mode = 'error'; $('#sync').dataset.state = 'local'; $('#sync').textContent = 'Sin conexión con tu cuenta'; toast('No pude leer tus datos guardados. Recarga la página; mientras tanto no escribas nada nuevo.', 6000); };
+  const got = (kind, fn) => S.backend.subscribe(kind, (docs) => { fn(docs); S.loaded[kind] = true; scheduleRender(); }, fail);
+  got('profile', (docs) => { S.profile = docs[0] ? docs[0] : null; });
+  got('days', (docs) => { S.days = Object.fromEntries(docs.map((d) => [d.id, d])); });
+  got('foods', (docs) => { S.foods = Object.fromEntries(docs.map((d) => [d.id, { ...d, id: d.id }])); });
+  got('targets', (docs) => { S.targets = docs.map((d) => ({ ...d, from: d.from || d.id })); });
+  if (window.claude && window.claude.use) {
+    window.claude.use('sample').then((s) => { S.caps.sample = s; }).catch(() => {});
+    window.claude.use('downloads').then((d) => { S.caps.downloads = d; }).catch(() => {});
+  }
+}
+boot();
+
+</script>
