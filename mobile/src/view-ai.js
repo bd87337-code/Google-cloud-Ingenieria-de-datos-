@@ -182,7 +182,7 @@ function exerciseCard(iso, day) {
   const list = day.exercise || [], totalMin = list.reduce((s, e) => s + e.min, 0);
   return h('details', { class: 'card', open: list.length ? true : null }, h('summary', null, 'Ejercicio' + (list.length ? ' · ' + totalMin + ' min' : '')),
     list.length ? h('div', { class: 'list' }, list.map((e) => h('button', { class: 'row', type: 'button', onclick: () => exerciseSheet(iso, e.id) },
-      h('div', { class: 'main' }, h('div', { class: 'name' }, e.name), h('div', { class: 'meta num' }, `${e.min} min${isNum(e.kcal) ? ' · ' + fmt0(e.kcal) + ' kcal (tu cálculo)' : ''}`)), h('div', { class: 'end' }, '›'))))
+      h('div', { class: 'main' }, h('div', { class: 'name' }, e.name), h('div', { class: 'meta num' }, `${e.min} min${isNum(e.kcal) ? ' · ' + fmt0(e.kcal) + ' kcal (tu cálculo)' : ''}`)), h('div', { class: 'end chev' }, icon('chevR')))))
       : h('p', { class: 'sub' }, 'Sin ejercicio registrado este día.'),
     h('button', { class: 'btn block', type: 'button', onclick: () => exerciseSheet(iso, null) }, '+ Registrar ejercicio'),
     h('p', { class: 'sub' }, 'Se guarda como referencia y no se suma a tu meta de calorías: las calorías que dicen los relojes y las apps varían mucho, y «comérselas» de vuelta suele borrar el déficit.'));

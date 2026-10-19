@@ -2,7 +2,7 @@
    (el mismo azul de las series), cifras grandes en la cara de títulos, tarjetas solo donde agrupan. */
 :root {
   --bg: #f1f4f3; --surface: #ffffff; --surface2: #e8edeb; --ink: #121719; --ink2: #3f4a4f; --muted: #5a666b;
-  --line: #d9e0de; --accent: #2a78d6; --accent-ink: #1c5cab; --on-accent: #ffffff;
+  --line: #d9e0de; --accent: #2569c4; --accent-ink: #1c5cab; --on-accent: #ffffff;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
   --warn-bg: #fff4d6; --warn-ink: #6b4500; --info-bg: #e4eefb; --info-ink: #17467f; --good-ink: #006300; --bad-ink: #a12a2a; --bad-bg: #fde7e7;
   --scrim: rgba(10, 16, 18, .45); --shadow: 0 -8px 30px rgba(10, 16, 18, .18);
@@ -67,15 +67,12 @@ main { max-width: 640px; margin-inline: auto; padding-block: 8px 112px; display:
 .sub { color: var(--muted); font-size: 14px; }
 .notice { --n-bg: var(--info-bg); --n-ink: var(--info-ink); border-radius: var(--r-sm); padding: 11px 13px; font-size: 14px; display: flex; gap: 10px;
   align-items: flex-start; background: var(--n-bg); color: var(--n-ink); }
-.notice::before { content: "i"; flex: none; width: 20px; height: 20px; border-radius: 50%; font: 700 12px/20px var(--font-body); text-align: center;
-  background: var(--n-ink); color: var(--n-bg); margin-top: 1px; }
+.notice .ni { flex: none; width: 20px; height: 20px; margin-top: 0; display: block; }
+.notice .ni svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .notice.warn { --n-bg: var(--warn-bg); --n-ink: var(--warn-ink); }
-.notice.warn::before { content: "!"; }
 .notice.bad { --n-bg: var(--bad-bg); --n-ink: var(--bad-ink); }
-.notice.bad::before { content: "×"; }
 .notice.good { --n-bg: var(--info-bg); --n-ink: var(--good-ink); }
-.notice.good::before { content: "✓"; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: var(--r-sm);
   border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; text-align: center; }
@@ -90,7 +87,7 @@ main { max-width: 640px; margin-inline: auto; padding-block: 8px 112px; display:
 .btn-row.tight { flex-wrap: nowrap; gap: 8px; }
 .btn-row.tight > .btn { flex: 1 1 0; min-width: 0; padding: 0 6px; }
 .btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.big-total { font: 700 34px/1 var(--font-display); letter-spacing: -.02em; }
+.big-total { font: 700 34px/1 var(--font-body); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 
 /* ---- formularios ---- */
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -122,7 +119,7 @@ details > :not(summary) { margin-top: 14px; }
 .date-label { flex: 1; text-align: center; font: 700 17px/1.2 var(--font-display); position: relative; min-height: 46px; display: flex; flex-direction: column; justify-content: center; }
 .date-label input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
 .kcal-hero { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.kcal-hero .big { font: 700 44px/1 var(--font-display); letter-spacing: -.03em; }
+.kcal-hero .big { font: 700 44px/1 var(--font-body); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .meter { height: 10px; border-radius: 5px; background: var(--surface2); overflow: hidden; }
 .meter > i { display: block; height: 100%; border-radius: 5px; background: var(--accent); min-width: 0; transition: width .25s; }
 .macro { display: grid; grid-template-columns: 118px 1fr auto; gap: 10px; align-items: center; font-size: 14px; }
@@ -152,7 +149,7 @@ details > :not(summary) { margin-top: 14px; }
 /* ---- progreso ---- */
 .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px; }
-.kpi .v { font: 700 24px/1.1 var(--font-display); letter-spacing: -.02em; margin-top: 2px; }
+.kpi .v { font: 700 24px/1.1 var(--font-body); letter-spacing: -.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .kpi .l { font-size: 12.5px; color: var(--muted); }
 .chart-box { position: relative; height: 240px; }
 .chart-box.tall { height: 330px; }
@@ -183,3 +180,29 @@ th { color: var(--muted); font-weight: 600; }
 input[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
 input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 1.2em; }
 input[type="date"]::-webkit-datetime-edit { padding: 0; }
+
+/* ---- sensación de app en el teléfono ---- */
+html { -webkit-tap-highlight-color: transparent; }
+button, .row, [role="button"], summary { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+::selection { background: var(--accent); color: var(--on-accent); }
+input, textarea, select { caret-color: var(--accent); accent-color: var(--accent); }
+/* respuesta inmediata al tocar: se siente en el dedo, no al soltarlo */
+.btn, .chip, .tab, .tab-cam, .row, .seg button { transition: transform .12s cubic-bezier(.23, 1, .32, 1), background-color .12s; }
+.btn:active, .chip:active, .tab:active, .seg button:active { transform: scale(.97); }
+.tab-cam:active { transform: scale(.93); }
+.row:active { background: var(--surface2); }
+.btn[disabled]:active { transform: none; }
+.row .end.chev svg { width: 18px; height: 18px; stroke: var(--muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.btn.again svg { width: 16px; height: 16px; }
+.btn.plus svg, .date-bar .btn svg { width: 22px; height: 22px; }
+/* hojas y avisos: entrada corta, de abajo hacia arriba (no se anima nada que se use decenas de veces al día) */
+@keyframes sheet-in { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.scrim { animation: fade-in .18s ease-out; }
+.sheet { animation: sheet-in .24s cubic-bezier(.23, 1, .32, 1); }
+.toast:not([hidden]) { animation: sheet-in .2s cubic-bezier(.23, 1, .32, 1); }
+/* esqueleto de carga */
+.skels { display: flex; flex-direction: column; gap: 14px; }
+.skel { border-radius: var(--r); background: linear-gradient(100deg, var(--surface) 30%, var(--surface2) 50%, var(--surface) 70%); background-size: 300% 100%; animation: shimmer 1.4s ease-in-out infinite; border: 1px solid var(--line); }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .scrim, .sheet, .toast:not([hidden]), .skel { animation: none; } .btn, .chip, .tab, .tab-cam, .row, .seg button { transition: none; } }

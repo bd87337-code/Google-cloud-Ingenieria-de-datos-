@@ -5,7 +5,7 @@ function render() {
   destroyCharts();
   const view = $('#view'), tab = TABS.find((x) => x[0] === S.tab);
   const ready = Object.values(S.loaded).every(Boolean);
-  try { view.replaceChildren(ready ? tab[2]() : h('div', { class: 'empty' }, h('span', { class: 'spin' }), h('span', null, 'Cargando tus datos…'))); }
+  try { view.replaceChildren(ready ? tab[2]() : h('div', { class: 'skels', 'aria-label': 'Cargando tus datos…', role: 'status' }, h('div', { class: 'skel', style: 'height:58px' }), h('div', { class: 'skel', style: 'height:150px' }), h('div', { class: 'skel', style: 'height:230px' }))); }
   catch (e) { console.error(e); view.replaceChildren(notice('bad', 'Algo falló al mostrar esta pantalla: ' + (e && e.message ? e.message : e) + '. Prueba con otra pestaña o recarga la página.')); }
   $('#tabs').querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
   postRender.splice(0).forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });

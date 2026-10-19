@@ -81,12 +81,16 @@ const ICONS = {
   foods: 'M12 7c-2-3-7-2-7 3 0 5 3 10 7 10s7-5 7-10c0-5-5-6-7-3zM12 7c0-2 1-3 3-4',
   goals: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
   data: 'M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6',
+  chevL: 'M15 6l-6 6 6 6', chevR: 'M9 6l6 6-6 6', plus: 'M12 5v14M5 12h14',
+  repeat: 'M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3',
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 8h.01M11.5 12H12v5', warn: 'M12 3.5L2.5 20h19zM12 10v4.5M12 17.5h.01',
+  bad: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9 9l6 6M15 9l-6 6', good: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.5l3 3 5-6',
   camera: 'M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
 };
 const icon = (name) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
   const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]); s.append(p); return s; };
 
-function notice(kind, ...kids) { return h('div', { class: 'notice ' + kind, role: kind === 'bad' ? 'alert' : null }, h('span', null, ...kids)); }
+function notice(kind, ...kids) { return h('div', { class: 'notice ' + kind, role: kind === 'bad' ? 'alert' : null }, h('i', { class: 'ni' }, icon(ICONS[kind] ? kind : 'info')), h('span', null, ...kids)); }
 function field(label, input, hint) { const id = input.id || (input.id = 'fld' + (++_fieldSeq)); return h('div', { class: 'field' }, h('label', { for: id }, label), input, hint ? h('div', { class: 'hint' }, hint) : null); }
 function numInput(value, o = {}) { return h('input', { type: 'number', inputmode: 'decimal', step: o.step || 'any', min: o.min, max: o.max, value: value == null ? '' : value, placeholder: o.placeholder, id: o.id }); }
 function select(options, value, id) { return h('select', { id, value }, options.map(([v, l]) => h('option', { value: v, selected: v === value }, l))); }

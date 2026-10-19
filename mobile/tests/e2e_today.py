@@ -40,9 +40,9 @@ with Session() as s:
       {id:'a1', meal:'breakfast', foodId:'usda-175036', name:'Tortilla de maíz', brand:null, grams:72, kcal:157, p:4, c:32, f:2, at:1},
       {id:'a2', meal:'breakfast', foodId:'nope', name:'Estimado IA', brand:null, grams:100, kcal:200, p:10, c:20, f:8, at:2, est:true}]; })""", yday)
     p.wait_for_timeout(400)
-    btn = p.get_by_role("button", name="↻ Repetir el de ayer")
+    btn = p.get_by_role("button", name="Repetir el de ayer")
     check(btn.count() == 1 and "kcal" in btn.inner_text(), f"el desayuno vacío ofrece repetir el de ayer: «{btn.first.inner_text() if btn.count() else ''}»")
-    check(p.get_by_role("button", name="↻ Repetir").count() == 1, "solo las comidas vacías con antecedente lo ofrecen")
+    check(p.get_by_role("button", name=__import__("re").compile("^Repetir")).count() == 1, "solo las comidas vacías con antecedente lo ofrecen")
     btn.click(); p.wait_for_timeout(400)
     es = p.evaluate("S.days[S.date].entries.filter(e => e.meal === 'breakfast')")
     check(len(es) == 2 and len({e['id'] for e in es}) == 2 and all(e['id'] not in ('a1', 'a2') for e in es), "copia con ids nuevos")

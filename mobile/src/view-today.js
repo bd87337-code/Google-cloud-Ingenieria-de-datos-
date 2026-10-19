@@ -52,9 +52,9 @@ function viewToday() {
 
   const dateInput = h('input', { type: 'date', value: iso, max: today, 'aria-label': 'Elegir fecha', onchange: (e) => { if (e.target.value) { S.date = e.target.value > today ? today : e.target.value; render(); } } });
   root.append(h('div', { class: 'date-bar' },
-    h('button', { class: 'btn', type: 'button', 'aria-label': 'Día anterior', onclick: () => { S.date = addDays(iso, -1); render(); } }, '‹'),
+    h('button', { class: 'btn', type: 'button', 'aria-label': 'Día anterior', onclick: () => { S.date = addDays(iso, -1); render(); } }, icon('chevL')),
     h('div', { class: 'date-label' }, h('span', null, iso === today ? 'Hoy' : longDate(iso).replace(/^./, (c) => c.toUpperCase())), iso === today ? h('span', { class: 'sub', style: 'font-weight:400' }, longDate(iso)) : null, dateInput),
-    h('button', { class: 'btn', type: 'button', 'aria-label': 'Día siguiente', disabled: iso >= today, onclick: () => { S.date = addDays(iso, 1); render(); } }, '›')));
+    h('button', { class: 'btn', type: 'button', 'aria-label': 'Día siguiente', disabled: iso >= today, onclick: () => { S.date = addDays(iso, 1); render(); } }, icon('chevR'))));
 
   if (!S.profile) root.append(notice('info', 'Para empezar, crea tu perfil y tu meta en la pestaña ', h('b', null, 'Metas'), '. Mientras tanto ya puedes registrar comida.'));
   else if (!target) root.append(notice('warn', 'Aún no tienes una meta vigente. Establécela en la pestaña ', h('b', null, 'Metas'), '.'));
@@ -85,12 +85,12 @@ function viewToday() {
     const es = entries.filter((e) => e.meal === meal), again = es.length ? null : lastMeal(iso, meal);
     log.append(h('div', { class: 'meal' },
       h('div', { class: 'meal-head' }, h('h3', null, MEAL_LABEL[meal]), h('span', { class: 'sub num' }, es.length ? fmt0(sumEntries(es).kcal) + ' kcal' : ''),
-        h('button', { class: 'btn sm plus', type: 'button', 'aria-label': 'Agregar a ' + MEAL_LABEL[meal], onclick: () => addFoodSheet(iso, null, meal) }, '+')),
+        h('button', { class: 'btn sm plus', type: 'button', 'aria-label': 'Agregar a ' + MEAL_LABEL[meal], onclick: () => addFoodSheet(iso, null, meal) }, icon('plus'))),
       es.length ? h('div', { class: 'list' }, es.map((e) => h('button', { class: 'row', type: 'button', onclick: () => editEntrySheet(iso, e.id) },
         h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : ''), e.est ? h('span', { class: 'tag warn' }, 'estimado') : null), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
         h('div', { class: 'end' }, fmt0(e.kcal) + ' kcal')))) : null,
       again ? h('button', { class: 'btn ghost sm again', type: 'button', onclick: () => repeatMeal(iso, meal, again) },
-        `↻ Repetir ${again.iso === addDays(iso, -1) ? 'el de ayer' : 'el del ' + fmtDM(again.iso)} · ${fmt0(again.kcal)} kcal`) : null));
+        icon('repeat'), `Repetir ${again.iso === addDays(iso, -1) ? 'el de ayer' : 'el del ' + fmtDM(again.iso)} · ${fmt0(again.kcal)} kcal`) : null));
   }
   root.append(log);
 
@@ -166,7 +166,7 @@ function addFoodSheet(iso, preset, mealPreset) {
       }
       foods.forEach((f) => results.append(h('button', { class: 'row', type: 'button', onclick: () => pick(f) },
         h('div', { class: 'main' }, h('div', { class: 'name' }, foodLabel(f)), h('div', { class: 'meta num' }, `${fmt0(f.kcal)} kcal por 100 g${f.servingG ? ' · porción ' + fmt0(f.servingG) + ' g' : ''}`)),
-        h('div', { class: 'end' }, '›'))));
+        h('div', { class: 'end chev' }, icon('chevR')))));
       if (query) results.append(h('button', { class: 'btn ghost block', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f, mealPreset) }); } }, `+ Crear «${query}» como alimento nuevo`));
     };
     q.addEventListener('input', renderResults); renderResults();

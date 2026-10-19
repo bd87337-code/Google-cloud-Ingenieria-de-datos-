@@ -61,3 +61,14 @@ Las pruebas de navegador usan `tests/mock_claude.js`, una simulación de `window
 downloads) con la misma forma que la API real. **Esa simulación no es la API real**: lo que no se puede probar
 fuera de claude.ai es el comportamiento exacto de la `db` real (límites de tasa, reglas de acceso) y de los
 permisos que pide Claude al estimar macros o descargar.
+
+## Criterios de diseño aplicados
+
+Revisión de interfaz hecha con criterios de dos guías públicas de diseño, usadas solo como lista de verificación
+(no se instalaron ni se copió su contenido): [emilkowalski/skills](https://github.com/emilkowalski/skills) (MIT; en
+especial *mobile-native* y los principios de animación) e [Impeccable](https://github.com/pbakaus/impeccable)
+(Apache 2.0; modo «Operate» para interfaces de uso diario). Concretamente: sin flash gris al tocar, `:active` con
+respuesta inmediata (100–140 ms, ease-out), `touch-action: manipulation`, texto de controles no seleccionable,
+iconos dibujados en lugar de glifos, una sola familia tipográfica en cifras y etiquetas, esqueleto de carga en
+vez de spinner, hojas con entrada breve (y sin animación con «reducir movimiento»), contraste ≥ 4.5:1 en texto
+(el botón primario claro subió de 4.42 a 5.39).
