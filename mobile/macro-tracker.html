@@ -92,16 +92,16 @@ main { max-width: 640px; margin-inline: auto; padding-block: 8px 150px; display:
 
 /* ---- formularios ---- */
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.field > label, .lbl { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.field > label, .lbl { font-size: 14px; font-weight: 600; color: var(--ink); }
 .field .hint { font-size: 12.5px; color: var(--muted); }
 input[type="text"], input[type="number"], input[type="date"], input[type="search"], select, textarea {
   width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); padding: 0 12px; font-size: 16px; }
 textarea { padding: 10px 12px; min-height: 76px; }
 input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
 .check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-@media (max-width: 360px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 360px) { .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface2); border-radius: var(--r-sm); padding: 3px; gap: 3px; }
 .seg button { border: 0; background: transparent; min-height: 40px; border-radius: 8px; font-weight: 600; color: var(--ink2); cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(10, 16, 18, .18); }
@@ -109,6 +109,10 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
 .chip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 20px; min-height: 38px; padding: 0 14px; font-weight: 600; font-size: 14px; cursor: pointer; }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 details > summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; color: var(--ink2); list-style-position: inside; }
+/* Safari no aplica display:flex/gap al contenido de <details>: el espacio se da con margen, que funciona en todos. */
+details.card { display: block; }
+details.card > summary { font: 700 17px/1.3 var(--font-display); color: var(--ink); letter-spacing: -.01em; }
+details > :not(summary) { margin-top: 14px; }
 
 /* ---- resumen del día ---- */
 .date-bar { display: flex; align-items: center; gap: 8px; }
@@ -168,6 +172,10 @@ th { color: var(--muted); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2s; } .meter > i { transition: none; } }
 
 .fabs.away { display: none; }
+
+input[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 1.2em; }
+input[type="date"]::-webkit-datetime-edit { padding: 0; }
 
 </style>
 <header class="top"><span class="brand">Macro Tracker</span><span class="sync" id="sync" data-state="local" role="status">Cargando…</span></header>
@@ -2599,8 +2607,8 @@ function viewGoals() {
   const activity = select(Object.entries(ACTIVITY_LABEL), p ? p.activity : 'light');
   const goalSel = select(Object.entries(GOAL_LABEL), p ? p.goal : 'maintain');
   const rate = numInput(p ? p.rate : 0.25, { step: '0.05', min: 0, max: 1.5 });
-  const weight = numInput('', { step: '0.1', min: 30, max: 300, placeholder: body.weight ? 'último: ' + fmt1(body.weight) : 'obligatorio la 1.ª vez' });
-  const bf = numInput('', { step: '0.1', min: 3, max: 60, placeholder: body.bf ? 'último: ' + fmt1(body.bf) : 'si no lo conoces, déjalo vacío' });
+  const weight = numInput('', { step: '0.1', min: 30, max: 300, placeholder: body.weight ? 'último: ' + fmt1(body.weight) : 'kg' });
+  const bf = numInput('', { step: '0.1', min: 3, max: 60, placeholder: body.bf ? 'último: ' + fmt1(body.bf) : '%' });
   const bfSrc = select([['self_estimate', 'estimado por ti'], ['measured', 'medido (báscula, plicómetro, DEXA…)']], 'self_estimate');
   const pMin = numInput(p ? p.pMin : 1.6, { step: '0.1', min: 0.5, max: 4 }), pMax = numInput(p ? p.pMax : 2.2, { step: '0.1', min: 0.5, max: 4 });
   const fatMin = numInput(p ? p.fatMin : 0.6, { step: '0.1', min: 0, max: 2 }), fatPct = numInput(p ? Math.round(p.fatPct * 100) : 25, { step: '1', min: 0, max: 60 });
@@ -2610,10 +2618,10 @@ function viewGoals() {
   const msg = h('div');
   const form = h('details', { class: 'card', open: !p ? true : null }, h('summary', null, p ? 'Editar mi perfil' : 'Mi perfil'),
     h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Sexo'), segmented([['M', 'Hombre'], ['F', 'Mujer']], sexV.v, (v) => { sexV.v = v; })),
-    h('div', { class: 'grid2' }, field('Fecha de nacimiento', birth), field('Estatura (cm)', height)),
+    h('div', { class: 'grid2' }, field('Fecha de nacimiento', birth, 'Toca para elegirla'), field('Estatura (cm)', height)),
     field('Nivel de actividad', activity), h('div', { class: 'grid2' }, field('Objetivo', goalSel), field('Ritmo (kg/semana)', rate, 'Se ignora al mantener. Razonable: 0.25–0.5 al perder; 0.1–0.25 al ganar masa.')),
-    h('p', { class: 'lbl', style: 'margin-top:2px' }, 'Peso y composición actuales (se guardan como el registro de hoy)'),
-    h('div', { class: 'grid2' }, field('Peso (kg)', weight), field('% de grasa (opcional)', bf)), field('Origen del % de grasa', bfSrc, 'Sé honesto con el origen: una estimación a ojo no tiene la precisión de una medición.'),
+    h('div', null, h('h3', null, 'Peso y composición actuales'), h('p', { class: 'sub' }, 'Se guardan como tu registro de hoy.')),
+    h('div', { class: 'grid2' }, field('Peso (kg)', weight, body.weight ? null : 'Obligatorio la primera vez'), field('% de grasa (opcional)', bf, body.bf ? null : 'Si no lo conoces, déjalo vacío')), field('Origen del % de grasa', bfSrc, 'Sé honesto con el origen: una estimación a ojo no tiene la precisión de una medición.'),
     h('details', null, h('summary', null, 'Opciones avanzadas'),
       h('div', { style: 'display:flex;flex-direction:column;gap:12px;padding-top:6px' },
         h('div', { class: 'grid2' }, field('Proteína mín. (g/kg)', pMin), field('Proteína máx. (g/kg)', pMax)),

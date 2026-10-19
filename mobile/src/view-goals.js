@@ -11,8 +11,8 @@ function viewGoals() {
   const activity = select(Object.entries(ACTIVITY_LABEL), p ? p.activity : 'light');
   const goalSel = select(Object.entries(GOAL_LABEL), p ? p.goal : 'maintain');
   const rate = numInput(p ? p.rate : 0.25, { step: '0.05', min: 0, max: 1.5 });
-  const weight = numInput('', { step: '0.1', min: 30, max: 300, placeholder: body.weight ? 'último: ' + fmt1(body.weight) : 'obligatorio la 1.ª vez' });
-  const bf = numInput('', { step: '0.1', min: 3, max: 60, placeholder: body.bf ? 'último: ' + fmt1(body.bf) : 'si no lo conoces, déjalo vacío' });
+  const weight = numInput('', { step: '0.1', min: 30, max: 300, placeholder: body.weight ? 'último: ' + fmt1(body.weight) : 'kg' });
+  const bf = numInput('', { step: '0.1', min: 3, max: 60, placeholder: body.bf ? 'último: ' + fmt1(body.bf) : '%' });
   const bfSrc = select([['self_estimate', 'estimado por ti'], ['measured', 'medido (báscula, plicómetro, DEXA…)']], 'self_estimate');
   const pMin = numInput(p ? p.pMin : 1.6, { step: '0.1', min: 0.5, max: 4 }), pMax = numInput(p ? p.pMax : 2.2, { step: '0.1', min: 0.5, max: 4 });
   const fatMin = numInput(p ? p.fatMin : 0.6, { step: '0.1', min: 0, max: 2 }), fatPct = numInput(p ? Math.round(p.fatPct * 100) : 25, { step: '1', min: 0, max: 60 });
@@ -22,10 +22,10 @@ function viewGoals() {
   const msg = h('div');
   const form = h('details', { class: 'card', open: !p ? true : null }, h('summary', null, p ? 'Editar mi perfil' : 'Mi perfil'),
     h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Sexo'), segmented([['M', 'Hombre'], ['F', 'Mujer']], sexV.v, (v) => { sexV.v = v; })),
-    h('div', { class: 'grid2' }, field('Fecha de nacimiento', birth), field('Estatura (cm)', height)),
+    h('div', { class: 'grid2' }, field('Fecha de nacimiento', birth, 'Toca para elegirla'), field('Estatura (cm)', height)),
     field('Nivel de actividad', activity), h('div', { class: 'grid2' }, field('Objetivo', goalSel), field('Ritmo (kg/semana)', rate, 'Se ignora al mantener. Razonable: 0.25–0.5 al perder; 0.1–0.25 al ganar masa.')),
-    h('p', { class: 'lbl', style: 'margin-top:2px' }, 'Peso y composición actuales (se guardan como el registro de hoy)'),
-    h('div', { class: 'grid2' }, field('Peso (kg)', weight), field('% de grasa (opcional)', bf)), field('Origen del % de grasa', bfSrc, 'Sé honesto con el origen: una estimación a ojo no tiene la precisión de una medición.'),
+    h('div', null, h('h3', null, 'Peso y composición actuales'), h('p', { class: 'sub' }, 'Se guardan como tu registro de hoy.')),
+    h('div', { class: 'grid2' }, field('Peso (kg)', weight, body.weight ? null : 'Obligatorio la primera vez'), field('% de grasa (opcional)', bf, body.bf ? null : 'Si no lo conoces, déjalo vacío')), field('Origen del % de grasa', bfSrc, 'Sé honesto con el origen: una estimación a ojo no tiene la precisión de una medición.'),
     h('details', null, h('summary', null, 'Opciones avanzadas'),
       h('div', { style: 'display:flex;flex-direction:column;gap:12px;padding-top:6px' },
         h('div', { class: 'grid2' }, field('Proteína mín. (g/kg)', pMin), field('Proteína máx. (g/kg)', pMax)),
