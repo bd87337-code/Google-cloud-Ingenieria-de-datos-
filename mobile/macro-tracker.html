@@ -42,27 +42,32 @@ small, .small { font-size: 13px; }
 .wrap { max-width: 640px; margin-inline: auto; }
 
 /* ---- estructura ---- */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px 6px; max-width: 640px; margin-inline: auto; }
+/* La app de Claude dibuja sus botones ✕ y ⋯ flotando sobre la parte alta de la página: se deja ese hueco libre. */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 52px 6px; max-width: 640px; margin-inline: auto; }
 .brand { font: 700 18px/1 var(--font-display); letter-spacing: -.02em; }
 .sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 .sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--s3); }
 .sync[data-state="local"]::before { background: var(--s4); }
 .sync[data-state="saving"]::before { background: var(--s1); }
-main { max-width: 640px; margin-inline: auto; padding-block: 8px 150px; display: flex; flex-direction: column; gap: 14px; min-height: 60vh; }
+main { max-width: 640px; margin-inline: auto; padding-block: 8px 112px; display: flex; flex-direction: column; gap: 14px; min-height: 60vh; }
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
-  display: grid; grid-template-columns: repeat(5, 1fr); padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); z-index: 20; }
+  display: grid; grid-template-columns: 1fr 1fr 64px 1fr 1fr 1fr; align-items: end; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); z-index: 20; }
 .tab { background: none; border: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; color: var(--muted);
   font-size: 11px; font-weight: 500; min-height: 48px; cursor: pointer; border-radius: var(--r-sm); }
 .tab svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tab[aria-selected="true"] { color: var(--accent-ink); }
 .tab[aria-selected="true"] svg { stroke-width: 2.3; }
+.tab-cam { justify-self: center; width: 56px; height: 56px; margin-top: -26px; border-radius: 50%; border: 4px solid var(--surface); background: var(--accent); color: var(--on-accent);
+  display: grid; place-items: center; cursor: pointer; box-shadow: 0 4px 14px rgba(10, 16, 18, .35); }
+.tab-cam svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.tab-cam:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .tab:focus-visible, .btn:focus-visible, .row:focus-visible, .chip:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---- bloques ---- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .card.flat { background: transparent; border: 0; padding: 0; }
 .card-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.sub { color: var(--muted); font-size: 13px; }
+.sub { color: var(--muted); font-size: 14px; }
 .notice { --n-bg: var(--info-bg); --n-ink: var(--info-ink); border-radius: var(--r-sm); padding: 11px 13px; font-size: 14px; display: flex; gap: 10px;
   align-items: flex-start; background: var(--n-bg); color: var(--n-ink); }
 .notice::before { content: "i"; flex: none; width: 20px; height: 20px; border-radius: 50%; font: 700 12px/20px var(--font-body); text-align: center;
@@ -85,15 +90,15 @@ main { max-width: 640px; margin-inline: auto; padding-block: 8px 150px; display:
 .btn[disabled] { opacity: .5; cursor: default; }
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .btn-row > .btn { flex: 1 1 140px; }
-.fabs { position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 15; display: flex; gap: 10px; }
-.fabs .btn { min-height: 52px; padding: 0 22px; border-radius: 26px; box-shadow: 0 6px 20px rgba(10, 16, 18, .28); }
+.btn-row.tight { flex-wrap: nowrap; gap: 8px; }
+.btn-row.tight > .btn { flex: 1 1 0; min-width: 0; padding: 0 6px; }
 .btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .big-total { font: 700 34px/1 var(--font-display); letter-spacing: -.02em; }
 
 /* ---- formularios ---- */
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .field > label, .lbl { font-size: 14px; font-weight: 600; color: var(--ink); }
-.field .hint { font-size: 12.5px; color: var(--muted); }
+.field .hint { font-size: 13.5px; color: var(--muted); }
 input[type="text"], input[type="number"], input[type="date"], input[type="search"], select, textarea {
   width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); padding: 0 12px; font-size: 16px; }
 textarea { padding: 10px 12px; min-height: 76px; }
@@ -138,7 +143,11 @@ details > :not(summary) { margin-top: 14px; }
 .row .name { font-weight: 600; overflow-wrap: anywhere; }
 .row .meta { font-size: 13px; color: var(--muted); }
 .row .end { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-.meal-head { display: flex; justify-content: space-between; align-items: baseline; }
+.meal { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+.meal-head { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.meal-head h3 { flex: 1; }
+.btn.plus { min-width: 40px; width: 40px; padding: 0; font-size: 22px; line-height: 1; border-radius: 50%; color: var(--accent-ink); }
+.btn.again { align-self: flex-start; justify-content: flex-start; padding: 0 6px; }
 .tag { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: var(--surface2); color: var(--ink2); margin-left: 6px; vertical-align: 1px; }
 .tag.warn { background: var(--warn-bg); color: var(--warn-ink); }
 .empty { text-align: center; padding: 22px 8px; color: var(--muted); display: flex; flex-direction: column; gap: 10px; align-items: center; }
@@ -164,14 +173,15 @@ th { color: var(--muted); font-weight: 600; }
   padding: 8px 16px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; overscroll-behavior: contain; }
 .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 0; flex: none; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(138px + env(safe-area-inset-bottom, 0px)); z-index: 60; background: var(--ink); color: var(--bg);
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 60; background: var(--ink); color: var(--bg);
   padding: 11px 16px; border-radius: 22px; font-size: 14px; font-weight: 500; max-width: calc(100% - 32px); box-shadow: 0 6px 20px rgba(0, 0, 0, .3); }
+.toast { display: flex; align-items: center; gap: 14px; }
 .toast[hidden] { display: none; }
+.toast-undo { background: none; border: 0; color: var(--bg); font-weight: 700; text-decoration: underline; min-height: 32px; padding: 0 4px; cursor: pointer; }
 .spin { display: inline-block; width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; }
 @keyframes sp { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2s; } .meter > i { transition: none; } }
 
-.fabs.away { display: none; }
 
 input[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
 input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 1.2em; }
@@ -180,7 +190,6 @@ input[type="date"]::-webkit-datetime-edit { padding: 0; }
 </style>
 <header class="top"><span class="brand">Macro Tracker</span><span class="sync" id="sync" data-state="local" role="status">Cargando…</span></header>
 <main id="view" aria-live="polite"></main>
-<div class="fabs" id="fab" hidden><button class="btn" id="fab-add" type="button">Buscar</button><button class="btn primary" id="fab-photo" type="button"><span id="fab-photo-icon"></span>Foto</button></div>
 <nav class="tabs" id="tabs" role="tablist" aria-label="Secciones"></nav>
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -532,21 +541,22 @@ function makeCloudBackend(db, uid) {
   const base = db.collection('data/users/' + uid);
   const app = base.doc('app');
   const ref = (kind, id) => (kind === 'profile' ? base.doc('profile') : app.collection(kind).doc(id));
-  const chains = new Map();   // una escritura a la vez por documento
-  const enqueue = (path, fn) => {
-    const next = (chains.get(path) || Promise.resolve()).catch(() => {}).then(fn);
-    chains.set(path, next);
-    return next;
-  };
-  const retry = async (fn) => {
-    try { return await fn(); } catch (e) {
-      if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) {
-        await new Promise((r) => setTimeout(r, 400 + Math.random() * 600));
-        return fn();
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Una sola escritura a la vez, en orden. La plataforma limita las llamadas por segundo; en paralelo
+  // (o en ráfagas largas, como una importación) algunas se rechazaban y quedaba el trabajo a medias.
+  let tail = Promise.resolve(), gap = 0;
+  const enqueue = (fn) => { const next = tail.catch(() => {}).then(() => attempt(fn)); tail = next; return next; };
+  async function attempt(fn) {
+    for (let n = 0; ; n++) {
+      if (gap) await sleep(gap);
+      try { const r = await fn(); gap = Math.floor(gap * 0.7); return r; } catch (e) {
+        const code = e && e.code;
+        if (!((code === 'resource_exhausted' && n < 6) || (code === 'unavailable' && n < 2))) throw e;
+        if (code === 'resource_exhausted') gap = Math.min(1500, gap ? gap * 2 : 200);   // ir más despacio, también para lo que sigue
+        await sleep(Math.round(300 * 2 ** n * (0.6 + Math.random() * 0.8)));
       }
-      throw e;
     }
-  };
+  }
   return {
     mode: 'cloud',
     async init() { return true; },
@@ -555,8 +565,8 @@ function makeCloudBackend(db, uid) {
       if (kind === 'profile') src.onSnapshot((s) => fn(s.exists ? [{ id: 'main', ...s.data() }] : []), onError);
       else src.onSnapshot((s) => fn(s.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
     },
-    put(kind, id, data) { const r = ref(kind, id); return enqueue(r.path, () => retry(() => r.set(JSON.parse(JSON.stringify(data))))); },
-    remove(kind, id) { const r = ref(kind, id); return enqueue(r.path, () => retry(() => r.delete())); },
+    put(kind, id, data) { const r = ref(kind, id); const body = JSON.parse(JSON.stringify(data)); return enqueue(() => r.set(body)); },
+    remove(kind, id) { const r = ref(kind, id); return enqueue(() => r.delete()); },
   };
 }
 
@@ -1756,10 +1766,18 @@ const CONF_LABEL = { high: 'alta', medium: 'media', low: 'baja' };
 const MACROS = [['protein', 'Proteína', 's1', 'p'], ['carbs', 'Carbohidratos', 's2', 'c'], ['fat', 'Grasa', 's3', 'f']];
 const STALE_WEIGHT_DAYS = 14, STALE_BF_DAYS = 90;
 
+/* ---------- catálogo incluido (USDA): vive en el código, no en la base de datos ----------
+   Así está disponible desde el primer segundo, sin escribir 97 documentos (la plataforma limita las escrituras
+   por segundo y una carga a medias dejaba alimentos fuera). Si editas uno, se guarda tu versión y esa manda. */
+const BUILTIN = new Map(SEED_FOODS.map((x) => [x.id, { id: x.id, name: x.name, brand: null, kcal: x.kcal, p: x.p, c: x.c, f: x.f, servingG: x.servingG, servingLabel: x.servingLabel, source: 'usda', fdc: x.fdc, archived: false, createdAt: 0 }]));
+const isBuiltin = (id) => BUILTIN.has(id);
+const withBuiltin = (stored) => { const out = {}; BUILTIN.forEach((f, id) => { out[id] = { ...f }; }); return Object.assign(out, stored); };
+const sameAsBuiltin = (f) => { const b = BUILTIN.get(f.id); return !!b && ['name', 'kcal', 'p', 'c', 'f', 'servingG', 'servingLabel', 'source', 'archived'].every((k) => (b[k] ?? null) === (f[k] ?? null)) && !f.brand && !f.recipe; };
+
 const S = {
-  backend: null, mode: 'local', pending: 0, profile: null, days: {}, foods: {}, targets: [],
+  backend: null, mode: 'local', pending: 0, profile: null, days: {}, foods: withBuiltin({}), targets: [],
   loaded: { profile: false, days: false, foods: false, targets: false },
-  tab: 'today', date: todayIso(), caps: { sample: null, downloads: null, images: false }, seedBusy: false,
+  storedFoods: new Set(), tab: 'today', date: todayIso(), caps: { sample: null, downloads: null, images: false },
   range: { preset: '90', start: null, end: null }, tdeeWindow: 14, showArchived: false, foodFilter: 'all',
 };
 
@@ -1838,7 +1856,12 @@ function tableView(headers, rows, label = 'Ver tabla') {
 }
 
 let toastTimer;
-function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms); }
+/** Aviso breve. Con `undo`, ofrece «Deshacer» durante unos segundos más. */
+function toast(msg, ms = 2600, undo = null) {
+  const t = $('#toast'); t.replaceChildren(h('span', null, msg));
+  if (undo) { t.append(h('button', { class: 'toast-undo', type: 'button', onclick: () => { t.hidden = true; clearTimeout(toastTimer); undo(); } }, 'Deshacer')); ms = Math.max(ms, 5500); }
+  t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
 
 let sheetEl = null;
 function openSheet(title, build) {
@@ -1882,8 +1905,11 @@ function saveDay(iso, mutate) {
   scheduleRender();
   return write(() => (empty ? S.backend.remove('days', iso) : S.backend.put('days', iso, doc)));
 }
-function saveFood(food) { S.foods[food.id] = food; scheduleRender(); return write(() => S.backend.put('foods', food.id, food)); }
-function removeFood(id) { delete S.foods[id]; scheduleRender(); return write(() => S.backend.remove('foods', id)); }
+function saveFood(food) { S.foods[food.id] = food; S.storedFoods.add(food.id); scheduleRender(); return write(() => S.backend.put('foods', food.id, food)); }
+function removeFood(id) {
+  if (isBuiltin(id)) return saveFood({ ...S.foods[id], archived: true });   // los incluidos no se borran: se ocultan
+  delete S.foods[id]; S.storedFoods.delete(id); scheduleRender(); return write(() => S.backend.remove('foods', id));
+}
 function saveProfile(p) { S.profile = p; scheduleRender(); return write(() => S.backend.put('profile', 'main', p)); }
 
 /* ---------- render con protección al escribir ---------- */
@@ -2061,7 +2087,7 @@ function aiLogSheet(iso, opts = {}) {
     const out = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }), msg = h('div');
     let items = [], ctl = null;
     const estBtn = h('button', { class: 'btn block', type: 'button' }, 'Estimar');
-    const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealByHour());
+    const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), opts.meal || mealByHour());
     const totEl = h('div', { class: 'big-total num' }), macEl = h('div', { class: 'sub num' });
     const upd = () => { const t = sumEntries(items.map((x) => ({ kcal: x.kcal, p: x.p, c: x.c, f: x.f }))); totEl.textContent = '≈ ' + fmt0(t.kcal) + ' kcal'; macEl.textContent = `Proteína ${fmt0(t.p)} g · Carbohidratos ${fmt0(t.c)} g · Grasa ${fmt0(t.f)} g`; };
 
@@ -2146,14 +2172,14 @@ function waterCard(iso, day) {
   const add = (d) => saveDay(iso, (x) => { x.water = Math.max(0, (isNum(x.water) ? x.water : 0) + d); });
   return h('section', { class: 'card', 'aria-label': 'Agua' }, h('div', { class: 'card-title' }, h('h2', null, 'Agua'), h('span', { class: 'sub num' }, `${fmtWater(ml)} de ${fmtWater(goal)}`)),
     h('div', { class: 'meter', role: 'progressbar', 'aria-valuenow': Math.round(Math.min(1, ml / goal) * 100), 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: `width:${Math.min(100, (ml / goal) * 100)}%` })),
-    h('div', { class: 'btn-row' }, [[250, '+250 ml'], [500, '+500 ml'], [1000, '+1 L']].map(([v, l]) => h('button', { class: 'btn sm', type: 'button', onclick: () => add(v) }, l)),
+    h('div', { class: 'btn-row tight' }, [[250, '+250 ml'], [500, '+500 ml'], [1000, '+1 L']].map(([v, l]) => h('button', { class: 'btn sm', type: 'button', onclick: () => add(v) }, l)),
       ml > 0 ? h('button', { class: 'btn ghost sm', type: 'button', 'aria-label': 'Quitar 250 ml', onclick: () => add(-250) }, '−250') : null));
 }
 
 /* ---------- ejercicio (solo registro: no se suma a la meta) ---------- */
 function exerciseCard(iso, day) {
   const list = day.exercise || [], totalMin = list.reduce((s, e) => s + e.min, 0);
-  return h('section', { class: 'card', 'aria-label': 'Ejercicio' }, h('div', { class: 'card-title' }, h('h2', null, 'Ejercicio'), list.length ? h('span', { class: 'sub num' }, totalMin + ' min') : null),
+  return h('details', { class: 'card', open: list.length ? true : null }, h('summary', null, 'Ejercicio' + (list.length ? ' · ' + totalMin + ' min' : '')),
     list.length ? h('div', { class: 'list' }, list.map((e) => h('button', { class: 'row', type: 'button', onclick: () => exerciseSheet(iso, e.id) },
       h('div', { class: 'main' }, h('div', { class: 'name' }, e.name), h('div', { class: 'meta num' }, `${e.min} min${isNum(e.kcal) ? ' · ' + fmt0(e.kcal) + ' kcal (tu cálculo)' : ''}`)), h('div', { class: 'end' }, '›'))))
       : h('p', { class: 'sub' }, 'Sin ejercicio registrado este día.'),
@@ -2211,7 +2237,23 @@ function searchFoods(query, { exclude, limit = 40 } = {}) {
   if (!tokens.length) return [];
   const first = norm(query);
   return foodList().filter((f) => !f.archived && f.id !== exclude && tokens.every((t) => norm(f.name + ' ' + (f.brand || '')).includes(t)))
-    .sort((a, b) => (norm(b.name).startsWith(first) - norm(a.name).startsWith(first)) || a.name.length - b.name.length || (a.name < b.name ? -1 : 1)).slice(0, limit);
+    .sort((a, b) => ((a.source === 'usda') - (b.source === 'usda')) || (norm(b.name).startsWith(first) - norm(a.name).startsWith(first)) || a.name.length - b.name.length || (a.name < b.name ? -1 : 1)).slice(0, limit);   // lo tuyo antes que el catálogo incluido
+}
+
+/** La última vez (hasta 7 días atrás) que registraste algo en esa comida. */
+function lastMeal(iso, meal) {
+  for (let i = 1; i <= 7; i++) {
+    const k = addDays(iso, -i), es = ((S.days[k] || {}).entries || []).filter((e) => e.meal === meal);
+    if (es.length) return { iso: k, entries: es, kcal: sumEntries(es).kcal };
+  }
+  return null;
+}
+function repeatMeal(iso, meal, src) {
+  // se recalcula con los valores actuales del alimento (por si lo corregiste); lo estimado por IA conserva su valor
+  const copies = src.entries.map((e) => { const f = S.foods[e.foodId]; return { ...e, ...(f && !e.est ? per(f, e.grams) : {}), id: uid(), at: Date.now() }; });
+  const ids = new Set(copies.map((e) => e.id));
+  saveDay(iso, (d) => { d.entries = (d.entries || []).concat(copies); });
+  toast(`Repetido: ${MEAL_LABEL[meal].toLowerCase()} · ${fmt0(sumEntries(copies).kcal)} kcal`, 3000, () => saveDay(iso, (d) => { d.entries = (d.entries || []).filter((e) => !ids.has(e.id)); }));
 }
 
 function viewToday() {
@@ -2246,6 +2288,23 @@ function viewToday() {
   }
   root.append(card);
 
+  /* registro por comida: cada comida tiene su «+», y si está vacía ofrece repetir la última igual */
+  const log = h('section', { class: 'card', 'aria-label': 'Registro' }, h('h2', null, 'Registro'));
+  if (!entries.length) log.append(h('p', { class: 'sub' }, S.caps.sample && S.caps.images ? 'Toca la cámara para estimar una comida desde una foto, o el «+» de cada comida para buscar un alimento.' : 'Toca el «+» de una comida para buscar un alimento.'));
+  for (const meal of MEALS) {
+    const es = entries.filter((e) => e.meal === meal), again = es.length ? null : lastMeal(iso, meal);
+    log.append(h('div', { class: 'meal' },
+      h('div', { class: 'meal-head' }, h('h3', null, MEAL_LABEL[meal]), h('span', { class: 'sub num' }, es.length ? fmt0(sumEntries(es).kcal) + ' kcal' : ''),
+        h('button', { class: 'btn sm plus', type: 'button', 'aria-label': 'Agregar a ' + MEAL_LABEL[meal], onclick: () => addFoodSheet(iso, null, meal) }, '+')),
+      es.length ? h('div', { class: 'list' }, es.map((e) => h('button', { class: 'row', type: 'button', onclick: () => editEntrySheet(iso, e.id) },
+        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : ''), e.est ? h('span', { class: 'tag warn' }, 'estimado') : null), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
+        h('div', { class: 'end' }, fmt0(e.kcal) + ' kcal')))) : null,
+      again ? h('button', { class: 'btn ghost sm again', type: 'button', onclick: () => repeatMeal(iso, meal, again) },
+        `↻ Repetir ${again.iso === addDays(iso, -1) ? 'el de ayer' : 'el del ' + fmtDM(again.iso)} · ${fmt0(again.kcal)} kcal`) : null));
+  }
+  root.append(log);
+
+  root.append(waterCard(iso, day), exerciseCard(iso, day), bodyCard(iso, day));
   /* estado del día para la adaptación */
   if (entries.length) {
     const minK = S.profile ? S.profile.minValidKcal : CFG.defaultMinValidKcal;
@@ -2256,19 +2315,6 @@ function viewToday() {
       h('p', { class: 'sub' }, `Automático: cuenta si suma al menos ${fmt0(minK)} kcal${iso === today ? ' y el día ya terminó (hoy casi siempre está incompleto)' : ''}. Ahora mismo: ${autoValid ? 'sí cuenta' : 'no cuenta'}.`)));
   }
 
-  /* registro por comida */
-  const log = h('section', { class: 'card', 'aria-label': 'Registro' }, h('h2', null, 'Registro'));
-  if (!entries.length) log.append(h('div', { class: 'empty' }, h('span', null, 'Todavía no registras nada este día.'), h('button', { class: 'btn primary', type: 'button', onclick: () => addFoodSheet(iso) }, 'Agregar el primer alimento')));
-  for (const meal of MEALS) {
-    const es = entries.filter((e) => e.meal === meal); if (!es.length) continue;
-    log.append(h('div', { class: 'meal-head', style: 'margin-top:4px' }, h('h3', null, MEAL_LABEL[meal]), h('span', { class: 'sub num' }, fmt0(sumEntries(es).kcal) + ' kcal')),
-      h('div', { class: 'list' }, es.map((e) => h('button', { class: 'row', type: 'button', onclick: () => editEntrySheet(iso, e.id) },
-        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : ''), e.est ? h('span', { class: 'tag warn' }, 'estimado') : null), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
-        h('div', { class: 'end' }, fmt0(e.kcal) + ' kcal')))));
-  }
-  root.append(log);
-
-  root.append(waterCard(iso, day), exerciseCard(iso, day), bodyCard(iso, day));
   return root;
 }
 
@@ -2309,11 +2355,11 @@ function bodyCard(iso, day) {
 }
 
 /* ---------- hoja: agregar alimento ---------- */
-function addFoodSheet(iso, preset) {
+function addFoodSheet(iso, preset, mealPreset) {
   openSheet('Agregar alimento', (body, close) => {
     const q = h('input', { type: 'search', placeholder: 'Buscar: tortilla, frijoles, pechuga…', autocomplete: 'off', 'aria-label': 'Buscar alimento' });
     const results = h('div', { class: 'list' });
-    const aiBtn = S.caps.sample ? h('button', { class: 'btn block', type: 'button', onclick: () => { close(); aiLogSheet(iso); } }, 'Describir o fotografiar la comida (IA)') : null;
+    const aiBtn = S.caps.sample ? h('button', { class: 'btn block', type: 'button', onclick: () => { close(); aiLogSheet(iso, { meal: mealPreset }); } }, 'Describir o fotografiar la comida (IA)') : null;
     const step1 = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, aiBtn, q, results);
     const step2 = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
     body.append(step1, step2); step2.hidden = true;
@@ -2325,13 +2371,13 @@ function addFoodSheet(iso, preset) {
       if (!foods.length) {
         results.append(h('div', { class: 'empty' },
           h('span', null, query ? `No tienes «${query}» guardado.` : 'Aún no tienes alimentos. Crea el primero y quedará guardado.'),
-          h('button', { class: 'btn primary', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f) }); } }, query ? `Crear «${query}»` : 'Crear un alimento')));
+          h('button', { class: 'btn primary', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f, mealPreset) }); } }, query ? `Crear «${query}»` : 'Crear un alimento')));
         return;
       }
       foods.forEach((f) => results.append(h('button', { class: 'row', type: 'button', onclick: () => pick(f) },
         h('div', { class: 'main' }, h('div', { class: 'name' }, foodLabel(f)), h('div', { class: 'meta num' }, `${fmt0(f.kcal)} kcal por 100 g${f.servingG ? ' · porción ' + fmt0(f.servingG) + ' g' : ''}`)),
         h('div', { class: 'end' }, '›'))));
-      if (query) results.append(h('button', { class: 'btn ghost block', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f) }); } }, `+ Crear «${query}» como alimento nuevo`));
+      if (query) results.append(h('button', { class: 'btn ghost block', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f, mealPreset) }); } }, `+ Crear «${query}» como alimento nuevo`));
     };
     q.addEventListener('input', renderResults); renderResults();
 
@@ -2339,7 +2385,7 @@ function addFoodSheet(iso, preset) {
       step1.hidden = true; step2.hidden = false; step2.replaceChildren();
       let unit = 'g';
       const qty = numInput(food.servingG ? food.servingG : 100, { step: 'any', min: 0 });
-      const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealByHour());
+      const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealPreset || mealByHour());
       const prev = h('div', { class: 'sub num' });
       const grams = () => { const v = num(qty.value); return v == null ? NaN : unit === 'g' ? v : v * food.servingG; };
       const upd = () => { const g = grams(); prev.textContent = g > 0 ? (() => { const m = per(food, g); return `${fmt0(g)} g → ${fmt0(m.kcal)} kcal · P ${fmt1(m.p)} g · C ${fmt1(m.c)} g · G ${fmt1(m.f)} g`; })() : 'Escribe una cantidad mayor que 0.'; };
@@ -2373,7 +2419,7 @@ function editEntrySheet(iso, entryId) {
     const upd = () => { const g = num(qty.value); prev.textContent = g > 0 ? `${fmt0(g)} g → ${fmt0((entry.kcal * g) / entry.grams)} kcal` : ''; };
     qty.addEventListener('input', upd); upd();
     body.append(field('Cantidad (g)', qty), prev, h('div', { class: 'btn-row' },
-      h('button', { class: 'btn danger', type: 'button', onclick: () => { saveDay(iso, (d) => { d.entries = d.entries.filter((e) => e.id !== entryId); }); close(); toast('Entrada borrada'); } }, 'Borrar'),
+      h('button', { class: 'btn danger', type: 'button', onclick: () => { saveDay(iso, (d) => { d.entries = d.entries.filter((e) => e.id !== entryId); }); close(); toast('Entrada borrada', 3000, () => saveDay(iso, (d) => { d.entries = (d.entries || []).concat(entry); })); } }, 'Borrar'),
       h('button', { class: 'btn primary', type: 'button', onclick: () => {
         const g = num(qty.value); if (!(g > 0)) { toast('La cantidad debe ser mayor que 0.'); return; }
         const k = g / entry.grams;
@@ -2423,7 +2469,8 @@ function openFoodForm(existing, { name, onSaved } = {}) {
     }
     body.append(msg, h('div', { class: 'btn-row' },
       existing ? h('button', { class: 'btn danger', type: 'button', onclick: () => {
-        if (foodUsed(existing.id)) { saveFood({ ...existing, archived: true }); toast('Archivado: ya está en tu registro o en una receta, así que se conserva oculto.', 4000); }
+        if (isBuiltin(existing.id)) { saveFood({ ...existing, archived: true }); toast('Oculto. Lo puedes ver otra vez en Alimentos con «Mostrar archivados».', 4000); }
+        else if (foodUsed(existing.id)) { saveFood({ ...existing, archived: true }); toast('Archivado: ya está en tu registro o en una receta, así que se conserva oculto.', 4000); }
         else { removeFood(existing.id); toast('Alimento eliminado'); }
         close();
       } }, 'Borrar / archivar') : null,
@@ -2543,11 +2590,11 @@ function openRecipeEditor(existing) {
 
 function viewFoods() {
   const root = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
-  root.append(h('div', { class: 'card-title' }, h('h2', null, 'Mis alimentos'), h('span', { class: 'sub' }, foodList().filter((f) => !f.archived).length + ' guardados')),
+  root.append(h('div', { class: 'card-title' }, h('h2', null, 'Mis alimentos'), h('span', { class: 'sub' }, foodList().filter((f) => !f.archived).length + ' alimentos')),
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn primary', type: 'button', onclick: () => openFoodForm(null) }, '+ Alimento'),
       h('button', { class: 'btn', type: 'button', onclick: () => openRecipeEditor(null) }, '+ Receta')));
-  root.append(seedCard());
+  root.append(seedNote());
   const q = h('input', { type: 'search', placeholder: 'Buscar entre tus alimentos…', autocomplete: 'off', 'aria-label': 'Buscar', value: S.foodQuery || '' });
   const chips = h('div', { class: 'chips', role: 'group' }, [['all', 'Todos'], ['custom', 'Míos'], ['recipe', 'Recetas'], ['usda', 'USDA'], ['label', 'Etiqueta'], ['ai', 'Estimados por IA']].map(([v, l]) =>
     h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.foodFilter === v), onclick: () => { S.foodFilter = v; render(); } }, l)));
@@ -2572,26 +2619,9 @@ function viewFoods() {
   return root;
 }
 
-/* ---------- base inicial de alimentos básicos (USDA) ---------- */
-function seedCard() {
-  const missing = SEED_FOODS.filter((x) => !S.foods[x.id]);
-  if (!missing.length) return h('p', { class: 'sub' }, `Base de alimentos básicos cargada (${SEED_FOODS.length}). Fuente: USDA FoodData Central.`);
-  const prog = h('div', { class: 'sub' });
-  const btn = h('button', { class: 'btn primary block', type: 'button', disabled: S.seedBusy, onclick: async () => {
-    S.seedBusy = true; btn.disabled = true;
-    const ok = await write(async () => {
-      for (let i = 0; i < missing.length; i++) {
-        const x = missing[i];
-        const food = { id: x.id, name: x.name, brand: null, kcal: x.kcal, p: x.p, c: x.c, f: x.f, servingG: x.servingG, servingLabel: x.servingLabel, source: 'usda', fdc: x.fdc, archived: false, createdAt: Date.now() };
-        await S.backend.put('foods', food.id, food); S.foods[food.id] = food;
-        prog.textContent = `Guardando ${i + 1} de ${missing.length}…`;
-        if (i % 15 === 14) await new Promise((r) => setTimeout(r, 50));
-      }
-    });
-    S.seedBusy = false; render(); if (ok) toast(`${missing.length} alimentos agregados`);
-  } }, `Agregar ${missing.length} alimentos básicos`);
-  return h('section', { class: 'card' }, h('h3', null, 'Alimentos básicos'),
-    h('p', { class: 'sub' }, `${SEED_FOODS.length} alimentos comunes (tortilla, frijol, pollo, huevo, queso fresco, frutas, verduras…) con valores por 100 g y porciones típicas. Fuente: USDA FoodData Central (SR Legacy), cada uno con su número de registro. Son valores genéricos: tu marca o tu receta pueden diferir. Lo que edites no se sobrescribe.`), prog, btn);
+/* ---------- nota sobre el catálogo incluido (USDA) ---------- */
+function seedNote() {
+  return h('p', { class: 'sub' }, `Incluye ${BUILTIN.size} alimentos básicos (tortilla, frijol, pollo, huevo, queso fresco, frutas, verduras…) con valores por 100 g y porciones típicas. Fuente: USDA FoodData Central (SR Legacy), cada uno con su número de registro. Son valores genéricos: tu marca o tu receta pueden diferir. Si editas uno, se guarda tu versión.`);
 }
 
 /* ===== VISTA METAS: perfil, meta por fórmula y adaptación ===== */
@@ -2956,12 +2986,12 @@ async function applyImport(plan, mode, onProgress) {
   const ops = [];
   if (mode === 'replace') {
     Object.keys(S.days).forEach((k) => ops.push(() => S.backend.remove('days', k)));
-    foodList().forEach((f) => ops.push(() => S.backend.remove('foods', f.id)));
+    [...S.storedFoods].forEach((id) => ops.push(() => S.backend.remove('foods', id)));
     S.targets.forEach((t) => ops.push(() => S.backend.remove('targets', t.from)));
     if (S.profile) ops.push(() => S.backend.remove('profile', 'main'));
   }
   const base = mode === 'replace' ? {} : S.days;
-  Object.values(plan.foods).forEach((f) => ops.push(() => S.backend.put('foods', f.id, f)));
+  Object.values(plan.foods).filter((f) => !sameAsBuiltin(f)).forEach((f) => ops.push(() => S.backend.put('foods', f.id, f)));   // lo idéntico al catálogo incluido no hace falta guardarlo
   for (const [iso, pt] of Object.entries(plan.dayPatches)) {
     const doc = clone(base[iso] || { date: iso });
     if (pt.body) for (const [k, v] of Object.entries(pt.body)) { if (v == null) delete doc[k]; else doc[k] = v; }
@@ -3045,7 +3075,7 @@ function viewData() {
     h('button', { class: 'btn danger block', type: 'button', onclick: () => {
       wipeBox.replaceChildren(notice('bad', 'Esto no se puede deshacer.'), h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: () => wipeBox.replaceChildren() }, 'Cancelar'),
         h('button', { class: 'btn danger', type: 'button', onclick: async () => {
-          const ok = await write(async () => { for (const k of Object.keys(S.days)) await S.backend.remove('days', k); for (const f of foodList()) await S.backend.remove('foods', f.id); for (const t of S.targets) await S.backend.remove('targets', t.from); if (S.profile) await S.backend.remove('profile', 'main'); });
+          const ok = await write(async () => { for (const k of Object.keys(S.days)) await S.backend.remove('days', k); for (const id of [...S.storedFoods]) await S.backend.remove('foods', id); for (const t of S.targets) await S.backend.remove('targets', t.from); if (S.profile) await S.backend.remove('profile', 'main'); });
           wipeBox.replaceChildren(); if (ok) toast('Se borraron todos tus datos.');
         } }, 'Sí, borrar todo')));
     } }, 'Borrar todos mis datos')));
@@ -3062,18 +3092,14 @@ function render() {
   try { view.replaceChildren(ready ? tab[2]() : h('div', { class: 'empty' }, h('span', { class: 'spin' }), h('span', null, 'Cargando tus datos…'))); }
   catch (e) { console.error(e); view.replaceChildren(notice('bad', 'Algo falló al mostrar esta pantalla: ' + (e && e.message ? e.message : e) + '. Prueba con otra pestaña o recarga la página.')); }
   $('#tabs').querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
-  $('#fab').hidden = !(ready && S.tab === 'today');
   postRender.splice(0).forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });
 }
 function mountChrome() {
   const tabs = $('#tabs');
   TABS.forEach(([id, label]) => tabs.append(h('button', { class: 'tab', type: 'button', role: 'tab', 'data-tab': id, onclick: () => setTab(id) }, icon(id), h('span', null, label))));
-  $('#fab-add').addEventListener('click', () => addFoodSheet(S.date));
-  $('#fab-photo').addEventListener('click', () => quickPhoto(S.date));
-  $('#fab-photo-icon').replaceWith(icon('camera'));
-  // el botón flotante se oculta mientras se escribe en un campo, para no tapar el formulario
-  document.addEventListener('focusin', (e) => { if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) $('#fab').classList.add('away'); });
-  document.addEventListener('focusout', () => $('#fab').classList.remove('away'));
+  // la cámara va en el centro de la barra (no flota sobre el contenido): un toque abre la cámara desde cualquier pestaña
+  const cam = h('button', { class: 'tab-cam', id: 'fab-photo', type: 'button', 'aria-label': 'Estimar una comida con una foto', onclick: () => { if (S.tab !== 'today') setTab('today'); quickPhoto(S.date); } }, icon('camera'));
+  tabs.insertBefore(cam, tabs.children[2]);
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => render());
   new MutationObserver(() => render()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 }
@@ -3084,7 +3110,7 @@ async function boot() {
   const got = (kind, fn) => S.backend.subscribe(kind, (docs) => { fn(docs); S.loaded[kind] = true; scheduleRender(); }, fail);
   got('profile', (docs) => { S.profile = docs[0] ? docs[0] : null; });
   got('days', (docs) => { S.days = Object.fromEntries(docs.map((d) => [d.id, d])); });
-  got('foods', (docs) => { S.foods = Object.fromEntries(docs.map((d) => [d.id, { ...d, id: d.id }])); });
+  got('foods', (docs) => { S.storedFoods = new Set(docs.map((d) => d.id)); S.foods = withBuiltin(Object.fromEntries(docs.map((d) => [d.id, { ...d, id: d.id }]))); });
   got('targets', (docs) => { S.targets = docs.map((d) => ({ ...d, from: d.from || d.id })); });
   if (window.claude && window.claude.use) {
     window.claude.use('sample').then((s) => { S.caps.sample = s; if (s && s.limits) s.limits().then((l) => { S.caps.images = !!(l && l.images); }).catch(() => {}); }).catch(() => {});

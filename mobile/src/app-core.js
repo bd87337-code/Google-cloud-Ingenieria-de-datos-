@@ -12,10 +12,18 @@ const CONF_LABEL = { high: 'alta', medium: 'media', low: 'baja' };
 const MACROS = [['protein', 'Proteína', 's1', 'p'], ['carbs', 'Carbohidratos', 's2', 'c'], ['fat', 'Grasa', 's3', 'f']];
 const STALE_WEIGHT_DAYS = 14, STALE_BF_DAYS = 90;
 
+/* ---------- catálogo incluido (USDA): vive en el código, no en la base de datos ----------
+   Así está disponible desde el primer segundo, sin escribir 97 documentos (la plataforma limita las escrituras
+   por segundo y una carga a medias dejaba alimentos fuera). Si editas uno, se guarda tu versión y esa manda. */
+const BUILTIN = new Map(SEED_FOODS.map((x) => [x.id, { id: x.id, name: x.name, brand: null, kcal: x.kcal, p: x.p, c: x.c, f: x.f, servingG: x.servingG, servingLabel: x.servingLabel, source: 'usda', fdc: x.fdc, archived: false, createdAt: 0 }]));
+const isBuiltin = (id) => BUILTIN.has(id);
+const withBuiltin = (stored) => { const out = {}; BUILTIN.forEach((f, id) => { out[id] = { ...f }; }); return Object.assign(out, stored); };
+const sameAsBuiltin = (f) => { const b = BUILTIN.get(f.id); return !!b && ['name', 'kcal', 'p', 'c', 'f', 'servingG', 'servingLabel', 'source', 'archived'].every((k) => (b[k] ?? null) === (f[k] ?? null)) && !f.brand && !f.recipe; };
+
 const S = {
-  backend: null, mode: 'local', pending: 0, profile: null, days: {}, foods: {}, targets: [],
+  backend: null, mode: 'local', pending: 0, profile: null, days: {}, foods: withBuiltin({}), targets: [],
   loaded: { profile: false, days: false, foods: false, targets: false },
-  tab: 'today', date: todayIso(), caps: { sample: null, downloads: null, images: false }, seedBusy: false,
+  storedFoods: new Set(), tab: 'today', date: todayIso(), caps: { sample: null, downloads: null, images: false },
   range: { preset: '90', start: null, end: null }, tdeeWindow: 14, showArchived: false, foodFilter: 'all',
 };
 
@@ -94,7 +102,12 @@ function tableView(headers, rows, label = 'Ver tabla') {
 }
 
 let toastTimer;
-function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms); }
+/** Aviso breve. Con `undo`, ofrece «Deshacer» durante unos segundos más. */
+function toast(msg, ms = 2600, undo = null) {
+  const t = $('#toast'); t.replaceChildren(h('span', null, msg));
+  if (undo) { t.append(h('button', { class: 'toast-undo', type: 'button', onclick: () => { t.hidden = true; clearTimeout(toastTimer); undo(); } }, 'Deshacer')); ms = Math.max(ms, 5500); }
+  t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
 
 let sheetEl = null;
 function openSheet(title, build) {
@@ -138,8 +151,11 @@ function saveDay(iso, mutate) {
   scheduleRender();
   return write(() => (empty ? S.backend.remove('days', iso) : S.backend.put('days', iso, doc)));
 }
-function saveFood(food) { S.foods[food.id] = food; scheduleRender(); return write(() => S.backend.put('foods', food.id, food)); }
-function removeFood(id) { delete S.foods[id]; scheduleRender(); return write(() => S.backend.remove('foods', id)); }
+function saveFood(food) { S.foods[food.id] = food; S.storedFoods.add(food.id); scheduleRender(); return write(() => S.backend.put('foods', food.id, food)); }
+function removeFood(id) {
+  if (isBuiltin(id)) return saveFood({ ...S.foods[id], archived: true });   // los incluidos no se borran: se ocultan
+  delete S.foods[id]; S.storedFoods.delete(id); scheduleRender(); return write(() => S.backend.remove('foods', id));
+}
 function saveProfile(p) { S.profile = p; scheduleRender(); return write(() => S.backend.put('profile', 'main', p)); }
 
 /* ---------- render con protección al escribir ---------- */

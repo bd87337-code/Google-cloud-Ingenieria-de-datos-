@@ -119,12 +119,12 @@ async function applyImport(plan, mode, onProgress) {
   const ops = [];
   if (mode === 'replace') {
     Object.keys(S.days).forEach((k) => ops.push(() => S.backend.remove('days', k)));
-    foodList().forEach((f) => ops.push(() => S.backend.remove('foods', f.id)));
+    [...S.storedFoods].forEach((id) => ops.push(() => S.backend.remove('foods', id)));
     S.targets.forEach((t) => ops.push(() => S.backend.remove('targets', t.from)));
     if (S.profile) ops.push(() => S.backend.remove('profile', 'main'));
   }
   const base = mode === 'replace' ? {} : S.days;
-  Object.values(plan.foods).forEach((f) => ops.push(() => S.backend.put('foods', f.id, f)));
+  Object.values(plan.foods).filter((f) => !sameAsBuiltin(f)).forEach((f) => ops.push(() => S.backend.put('foods', f.id, f)));   // lo idéntico al catálogo incluido no hace falta guardarlo
   for (const [iso, pt] of Object.entries(plan.dayPatches)) {
     const doc = clone(base[iso] || { date: iso });
     if (pt.body) for (const [k, v] of Object.entries(pt.body)) { if (v == null) delete doc[k]; else doc[k] = v; }
@@ -208,7 +208,7 @@ function viewData() {
     h('button', { class: 'btn danger block', type: 'button', onclick: () => {
       wipeBox.replaceChildren(notice('bad', 'Esto no se puede deshacer.'), h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: () => wipeBox.replaceChildren() }, 'Cancelar'),
         h('button', { class: 'btn danger', type: 'button', onclick: async () => {
-          const ok = await write(async () => { for (const k of Object.keys(S.days)) await S.backend.remove('days', k); for (const f of foodList()) await S.backend.remove('foods', f.id); for (const t of S.targets) await S.backend.remove('targets', t.from); if (S.profile) await S.backend.remove('profile', 'main'); });
+          const ok = await write(async () => { for (const k of Object.keys(S.days)) await S.backend.remove('days', k); for (const id of [...S.storedFoods]) await S.backend.remove('foods', id); for (const t of S.targets) await S.backend.remove('targets', t.from); if (S.profile) await S.backend.remove('profile', 'main'); });
           wipeBox.replaceChildren(); if (ok) toast('Se borraron todos tus datos.');
         } }, 'Sí, borrar todo')));
     } }, 'Borrar todos mis datos')));

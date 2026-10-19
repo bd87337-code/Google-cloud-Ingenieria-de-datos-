@@ -21,21 +21,22 @@ function makeCloudBackend(db, uid) {
   const base = db.collection('data/users/' + uid);
   const app = base.doc('app');
   const ref = (kind, id) => (kind === 'profile' ? base.doc('profile') : app.collection(kind).doc(id));
-  const chains = new Map();   // una escritura a la vez por documento
-  const enqueue = (path, fn) => {
-    const next = (chains.get(path) || Promise.resolve()).catch(() => {}).then(fn);
-    chains.set(path, next);
-    return next;
-  };
-  const retry = async (fn) => {
-    try { return await fn(); } catch (e) {
-      if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) {
-        await new Promise((r) => setTimeout(r, 400 + Math.random() * 600));
-        return fn();
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Una sola escritura a la vez, en orden. La plataforma limita las llamadas por segundo; en paralelo
+  // (o en ráfagas largas, como una importación) algunas se rechazaban y quedaba el trabajo a medias.
+  let tail = Promise.resolve(), gap = 0;
+  const enqueue = (fn) => { const next = tail.catch(() => {}).then(() => attempt(fn)); tail = next; return next; };
+  async function attempt(fn) {
+    for (let n = 0; ; n++) {
+      if (gap) await sleep(gap);
+      try { const r = await fn(); gap = Math.floor(gap * 0.7); return r; } catch (e) {
+        const code = e && e.code;
+        if (!((code === 'resource_exhausted' && n < 6) || (code === 'unavailable' && n < 2))) throw e;
+        if (code === 'resource_exhausted') gap = Math.min(1500, gap ? gap * 2 : 200);   // ir más despacio, también para lo que sigue
+        await sleep(Math.round(300 * 2 ** n * (0.6 + Math.random() * 0.8)));
       }
-      throw e;
     }
-  };
+  }
   return {
     mode: 'cloud',
     async init() { return true; },
@@ -44,8 +45,8 @@ function makeCloudBackend(db, uid) {
       if (kind === 'profile') src.onSnapshot((s) => fn(s.exists ? [{ id: 'main', ...s.data() }] : []), onError);
       else src.onSnapshot((s) => fn(s.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
     },
-    put(kind, id, data) { const r = ref(kind, id); return enqueue(r.path, () => retry(() => r.set(JSON.parse(JSON.stringify(data))))); },
-    remove(kind, id) { const r = ref(kind, id); return enqueue(r.path, () => retry(() => r.delete())); },
+    put(kind, id, data) { const r = ref(kind, id); const body = JSON.parse(JSON.stringify(data)); return enqueue(() => r.set(body)); },
+    remove(kind, id) { const r = ref(kind, id); return enqueue(() => r.delete()); },
   };
 }
 

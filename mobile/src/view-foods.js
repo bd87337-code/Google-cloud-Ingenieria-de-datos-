@@ -95,11 +95,11 @@ function openRecipeEditor(existing) {
 
 function viewFoods() {
   const root = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
-  root.append(h('div', { class: 'card-title' }, h('h2', null, 'Mis alimentos'), h('span', { class: 'sub' }, foodList().filter((f) => !f.archived).length + ' guardados')),
+  root.append(h('div', { class: 'card-title' }, h('h2', null, 'Mis alimentos'), h('span', { class: 'sub' }, foodList().filter((f) => !f.archived).length + ' alimentos')),
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn primary', type: 'button', onclick: () => openFoodForm(null) }, '+ Alimento'),
       h('button', { class: 'btn', type: 'button', onclick: () => openRecipeEditor(null) }, '+ Receta')));
-  root.append(seedCard());
+  root.append(seedNote());
   const q = h('input', { type: 'search', placeholder: 'Buscar entre tus alimentos…', autocomplete: 'off', 'aria-label': 'Buscar', value: S.foodQuery || '' });
   const chips = h('div', { class: 'chips', role: 'group' }, [['all', 'Todos'], ['custom', 'Míos'], ['recipe', 'Recetas'], ['usda', 'USDA'], ['label', 'Etiqueta'], ['ai', 'Estimados por IA']].map(([v, l]) =>
     h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.foodFilter === v), onclick: () => { S.foodFilter = v; render(); } }, l)));
@@ -124,24 +124,7 @@ function viewFoods() {
   return root;
 }
 
-/* ---------- base inicial de alimentos básicos (USDA) ---------- */
-function seedCard() {
-  const missing = SEED_FOODS.filter((x) => !S.foods[x.id]);
-  if (!missing.length) return h('p', { class: 'sub' }, `Base de alimentos básicos cargada (${SEED_FOODS.length}). Fuente: USDA FoodData Central.`);
-  const prog = h('div', { class: 'sub' });
-  const btn = h('button', { class: 'btn primary block', type: 'button', disabled: S.seedBusy, onclick: async () => {
-    S.seedBusy = true; btn.disabled = true;
-    const ok = await write(async () => {
-      for (let i = 0; i < missing.length; i++) {
-        const x = missing[i];
-        const food = { id: x.id, name: x.name, brand: null, kcal: x.kcal, p: x.p, c: x.c, f: x.f, servingG: x.servingG, servingLabel: x.servingLabel, source: 'usda', fdc: x.fdc, archived: false, createdAt: Date.now() };
-        await S.backend.put('foods', food.id, food); S.foods[food.id] = food;
-        prog.textContent = `Guardando ${i + 1} de ${missing.length}…`;
-        if (i % 15 === 14) await new Promise((r) => setTimeout(r, 50));
-      }
-    });
-    S.seedBusy = false; render(); if (ok) toast(`${missing.length} alimentos agregados`);
-  } }, `Agregar ${missing.length} alimentos básicos`);
-  return h('section', { class: 'card' }, h('h3', null, 'Alimentos básicos'),
-    h('p', { class: 'sub' }, `${SEED_FOODS.length} alimentos comunes (tortilla, frijol, pollo, huevo, queso fresco, frutas, verduras…) con valores por 100 g y porciones típicas. Fuente: USDA FoodData Central (SR Legacy), cada uno con su número de registro. Son valores genéricos: tu marca o tu receta pueden diferir. Lo que edites no se sobrescribe.`), prog, btn);
+/* ---------- nota sobre el catálogo incluido (USDA) ---------- */
+function seedNote() {
+  return h('p', { class: 'sub' }, `Incluye ${BUILTIN.size} alimentos básicos (tortilla, frijol, pollo, huevo, queso fresco, frutas, verduras…) con valores por 100 g y porciones típicas. Fuente: USDA FoodData Central (SR Legacy), cada uno con su número de registro. Son valores genéricos: tu marca o tu receta pueden diferir. Si editas uno, se guarda tu versión.`);
 }

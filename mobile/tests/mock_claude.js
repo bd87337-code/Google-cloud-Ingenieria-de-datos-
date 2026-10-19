@@ -12,15 +12,17 @@
   const segs = (p) => p.split('/').length;
   const sub = (fire) => { subs.add(fire); setTimeout(fire, 0); return () => subs.delete(fire); };
   const delay = (v) => new Promise((r) => setTimeout(() => r(v), 8));
-  window.__mockCalls = { sets: 0 };
+  window.__mockCalls = { sets: 0, rejected: 0 };
+  // inyección de fallos para probar los reintentos: __failRate = probabilidad de rechazo por «presupuesto agotado»
+  const maybeFail = () => { if (window.__failRate && Math.random() < window.__failRate) { window.__mockCalls.rejected++; throw { code: 'resource_exhausted', message: 'rate' }; } };
   function docRef(path) {
     if (segs(path) % 2 !== 0) throw new TypeError('doc path must have an even number of segments: ' + path);
     return {
       id: path.split('/').pop(), path,
       get: () => delay(snapDoc(path)),
-      set: async (d) => { window.__mockCalls.sets++; await delay(); store.set(path, JSON.stringify(d)); persist(); notify(); },
+      set: async (d) => { await delay(); maybeFail(); window.__mockCalls.sets++; store.set(path, JSON.stringify(d)); persist(); notify(); },
       update: async (d) => { const cur = JSON.parse(store.get(path) || 'null'); if (!cur) throw { code: 'invalid_argument', message: 'missing' }; store.set(path, JSON.stringify({ ...cur, ...d })); persist(); notify(); },
-      delete: async () => { await delay(); store.delete(path); persist(); notify(); },
+      delete: async () => { await delay(); maybeFail(); store.delete(path); persist(); notify(); },
       onSnapshot: (fn) => sub(() => fn(snapDoc(path))),
       collection: (p) => colRef(path + '/' + p),
     };

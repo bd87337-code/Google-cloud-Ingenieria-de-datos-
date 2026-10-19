@@ -14,12 +14,19 @@ claude.ai y se abre desde la app de Claude; no hay que instalar nada ni tener la
   - **Base inicial** de 97 alimentos básicos (tortilla, frijol, pollo, huevo, queso fresco, frutas, verduras…) de
     **USDA FoodData Central (SR Legacy, dominio público)**, cada uno con su número de registro (`fdc`) para poder
     verificarlo. Se regenera con `mobile/seed/build_seed.py`. Son valores genéricos: marcas y recetas propias pueden diferir.
+    Viven **en el código** (no se escriben en la base de datos): están disponibles al abrir y no consumen escrituras.
+    Si editas uno se guarda tu versión (que manda sobre el catálogo); «borrar» un alimento incluido lo oculta.
   - **Registro por texto o foto con IA**: Claude estima calorías y macros; el usuario corrige gramos antes de guardar.
     Las entradas quedan marcadas «estimado», se avisa qué % del día es estimado y, si pasa de 30 % de una ventana de
     análisis, se advierte que sesga a la baja el gasto «por datos». Se validan las respuestas (descarta lo imposible
     y fuerza coherencia kcal ↔ macros).
   - **Foto de la etiqueta nutrimental**: lee los números impresos y los convierte a valores por 100 g.
   - **Agua** y **ejercicio** (el ejercicio es solo referencia: no se suma a la meta calórica).
+  - **Hoy**: cuatro comidas, cada una con su «+» (preselecciona la comida); si una comida está vacía ofrece
+    «↻ Repetir el de ayer» (o el último día, hasta 7 días atrás) y los borrados/repeticiones se pueden deshacer.
+    La cámara está en el centro de la barra inferior, no flota sobre el contenido.
+  - **Escrituras a la nube**: una sola a la vez y con reintentos de espera creciente cuando la plataforma pide ir más
+    despacio (`resource_exhausted`); `tests/e2e_store.py` lo simula.
 
 ## Estructura
 
@@ -45,6 +52,9 @@ node --test mobile/tests/calc.test.mjs mobile/tests/ai.test.mjs   # el port JS r
 .venv/bin/python mobile/tests/e2e_flow.py                 # perfil → alimentos y receta → registro → recarga
 .venv/bin/python mobile/tests/e2e_history.py              # 10 semanas: gráficos, números vs Python, CSV en ambos sentidos
 .venv/bin/python mobile/tests/e2e_features.py             # base USDA, IA por texto/foto, etiqueta, agua, ejercicio, CSV
+.venv/bin/python mobile/tests/e2e_today.py                # Hoy: comidas con «+», repetir, deshacer, cámara en la barra
+.venv/bin/python mobile/tests/e2e_store.py                # ráfaga de escrituras con rechazos simulados: todas terminan guardadas
+.venv/bin/python mobile/tests/layout_check.py             # formularios sin encimarse (peor caso de Safari)
 ```
 
 Las pruebas de navegador usan `tests/mock_claude.js`, una simulación de `window.claude` (db, user, sample,

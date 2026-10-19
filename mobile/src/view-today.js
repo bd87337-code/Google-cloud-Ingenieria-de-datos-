@@ -27,7 +27,23 @@ function searchFoods(query, { exclude, limit = 40 } = {}) {
   if (!tokens.length) return [];
   const first = norm(query);
   return foodList().filter((f) => !f.archived && f.id !== exclude && tokens.every((t) => norm(f.name + ' ' + (f.brand || '')).includes(t)))
-    .sort((a, b) => (norm(b.name).startsWith(first) - norm(a.name).startsWith(first)) || a.name.length - b.name.length || (a.name < b.name ? -1 : 1)).slice(0, limit);
+    .sort((a, b) => ((a.source === 'usda') - (b.source === 'usda')) || (norm(b.name).startsWith(first) - norm(a.name).startsWith(first)) || a.name.length - b.name.length || (a.name < b.name ? -1 : 1)).slice(0, limit);   // lo tuyo antes que el catálogo incluido
+}
+
+/** La última vez (hasta 7 días atrás) que registraste algo en esa comida. */
+function lastMeal(iso, meal) {
+  for (let i = 1; i <= 7; i++) {
+    const k = addDays(iso, -i), es = ((S.days[k] || {}).entries || []).filter((e) => e.meal === meal);
+    if (es.length) return { iso: k, entries: es, kcal: sumEntries(es).kcal };
+  }
+  return null;
+}
+function repeatMeal(iso, meal, src) {
+  // se recalcula con los valores actuales del alimento (por si lo corregiste); lo estimado por IA conserva su valor
+  const copies = src.entries.map((e) => { const f = S.foods[e.foodId]; return { ...e, ...(f && !e.est ? per(f, e.grams) : {}), id: uid(), at: Date.now() }; });
+  const ids = new Set(copies.map((e) => e.id));
+  saveDay(iso, (d) => { d.entries = (d.entries || []).concat(copies); });
+  toast(`Repetido: ${MEAL_LABEL[meal].toLowerCase()} · ${fmt0(sumEntries(copies).kcal)} kcal`, 3000, () => saveDay(iso, (d) => { d.entries = (d.entries || []).filter((e) => !ids.has(e.id)); }));
 }
 
 function viewToday() {
@@ -62,6 +78,23 @@ function viewToday() {
   }
   root.append(card);
 
+  /* registro por comida: cada comida tiene su «+», y si está vacía ofrece repetir la última igual */
+  const log = h('section', { class: 'card', 'aria-label': 'Registro' }, h('h2', null, 'Registro'));
+  if (!entries.length) log.append(h('p', { class: 'sub' }, S.caps.sample && S.caps.images ? 'Toca la cámara para estimar una comida desde una foto, o el «+» de cada comida para buscar un alimento.' : 'Toca el «+» de una comida para buscar un alimento.'));
+  for (const meal of MEALS) {
+    const es = entries.filter((e) => e.meal === meal), again = es.length ? null : lastMeal(iso, meal);
+    log.append(h('div', { class: 'meal' },
+      h('div', { class: 'meal-head' }, h('h3', null, MEAL_LABEL[meal]), h('span', { class: 'sub num' }, es.length ? fmt0(sumEntries(es).kcal) + ' kcal' : ''),
+        h('button', { class: 'btn sm plus', type: 'button', 'aria-label': 'Agregar a ' + MEAL_LABEL[meal], onclick: () => addFoodSheet(iso, null, meal) }, '+')),
+      es.length ? h('div', { class: 'list' }, es.map((e) => h('button', { class: 'row', type: 'button', onclick: () => editEntrySheet(iso, e.id) },
+        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : ''), e.est ? h('span', { class: 'tag warn' }, 'estimado') : null), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
+        h('div', { class: 'end' }, fmt0(e.kcal) + ' kcal')))) : null,
+      again ? h('button', { class: 'btn ghost sm again', type: 'button', onclick: () => repeatMeal(iso, meal, again) },
+        `↻ Repetir ${again.iso === addDays(iso, -1) ? 'el de ayer' : 'el del ' + fmtDM(again.iso)} · ${fmt0(again.kcal)} kcal`) : null));
+  }
+  root.append(log);
+
+  root.append(waterCard(iso, day), exerciseCard(iso, day), bodyCard(iso, day));
   /* estado del día para la adaptación */
   if (entries.length) {
     const minK = S.profile ? S.profile.minValidKcal : CFG.defaultMinValidKcal;
@@ -72,19 +105,6 @@ function viewToday() {
       h('p', { class: 'sub' }, `Automático: cuenta si suma al menos ${fmt0(minK)} kcal${iso === today ? ' y el día ya terminó (hoy casi siempre está incompleto)' : ''}. Ahora mismo: ${autoValid ? 'sí cuenta' : 'no cuenta'}.`)));
   }
 
-  /* registro por comida */
-  const log = h('section', { class: 'card', 'aria-label': 'Registro' }, h('h2', null, 'Registro'));
-  if (!entries.length) log.append(h('div', { class: 'empty' }, h('span', null, 'Todavía no registras nada este día.'), h('button', { class: 'btn primary', type: 'button', onclick: () => addFoodSheet(iso) }, 'Agregar el primer alimento')));
-  for (const meal of MEALS) {
-    const es = entries.filter((e) => e.meal === meal); if (!es.length) continue;
-    log.append(h('div', { class: 'meal-head', style: 'margin-top:4px' }, h('h3', null, MEAL_LABEL[meal]), h('span', { class: 'sub num' }, fmt0(sumEntries(es).kcal) + ' kcal')),
-      h('div', { class: 'list' }, es.map((e) => h('button', { class: 'row', type: 'button', onclick: () => editEntrySheet(iso, e.id) },
-        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : ''), e.est ? h('span', { class: 'tag warn' }, 'estimado') : null), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
-        h('div', { class: 'end' }, fmt0(e.kcal) + ' kcal')))));
-  }
-  root.append(log);
-
-  root.append(waterCard(iso, day), exerciseCard(iso, day), bodyCard(iso, day));
   return root;
 }
 
@@ -125,11 +145,11 @@ function bodyCard(iso, day) {
 }
 
 /* ---------- hoja: agregar alimento ---------- */
-function addFoodSheet(iso, preset) {
+function addFoodSheet(iso, preset, mealPreset) {
   openSheet('Agregar alimento', (body, close) => {
     const q = h('input', { type: 'search', placeholder: 'Buscar: tortilla, frijoles, pechuga…', autocomplete: 'off', 'aria-label': 'Buscar alimento' });
     const results = h('div', { class: 'list' });
-    const aiBtn = S.caps.sample ? h('button', { class: 'btn block', type: 'button', onclick: () => { close(); aiLogSheet(iso); } }, 'Describir o fotografiar la comida (IA)') : null;
+    const aiBtn = S.caps.sample ? h('button', { class: 'btn block', type: 'button', onclick: () => { close(); aiLogSheet(iso, { meal: mealPreset }); } }, 'Describir o fotografiar la comida (IA)') : null;
     const step1 = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, aiBtn, q, results);
     const step2 = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
     body.append(step1, step2); step2.hidden = true;
@@ -141,13 +161,13 @@ function addFoodSheet(iso, preset) {
       if (!foods.length) {
         results.append(h('div', { class: 'empty' },
           h('span', null, query ? `No tienes «${query}» guardado.` : 'Aún no tienes alimentos. Crea el primero y quedará guardado.'),
-          h('button', { class: 'btn primary', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f) }); } }, query ? `Crear «${query}»` : 'Crear un alimento')));
+          h('button', { class: 'btn primary', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f, mealPreset) }); } }, query ? `Crear «${query}»` : 'Crear un alimento')));
         return;
       }
       foods.forEach((f) => results.append(h('button', { class: 'row', type: 'button', onclick: () => pick(f) },
         h('div', { class: 'main' }, h('div', { class: 'name' }, foodLabel(f)), h('div', { class: 'meta num' }, `${fmt0(f.kcal)} kcal por 100 g${f.servingG ? ' · porción ' + fmt0(f.servingG) + ' g' : ''}`)),
         h('div', { class: 'end' }, '›'))));
-      if (query) results.append(h('button', { class: 'btn ghost block', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f) }); } }, `+ Crear «${query}» como alimento nuevo`));
+      if (query) results.append(h('button', { class: 'btn ghost block', type: 'button', onclick: () => { close(); openFoodForm(null, { name: query, onSaved: (f) => addFoodSheet(iso, f, mealPreset) }); } }, `+ Crear «${query}» como alimento nuevo`));
     };
     q.addEventListener('input', renderResults); renderResults();
 
@@ -155,7 +175,7 @@ function addFoodSheet(iso, preset) {
       step1.hidden = true; step2.hidden = false; step2.replaceChildren();
       let unit = 'g';
       const qty = numInput(food.servingG ? food.servingG : 100, { step: 'any', min: 0 });
-      const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealByHour());
+      const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealPreset || mealByHour());
       const prev = h('div', { class: 'sub num' });
       const grams = () => { const v = num(qty.value); return v == null ? NaN : unit === 'g' ? v : v * food.servingG; };
       const upd = () => { const g = grams(); prev.textContent = g > 0 ? (() => { const m = per(food, g); return `${fmt0(g)} g → ${fmt0(m.kcal)} kcal · P ${fmt1(m.p)} g · C ${fmt1(m.c)} g · G ${fmt1(m.f)} g`; })() : 'Escribe una cantidad mayor que 0.'; };
@@ -189,7 +209,7 @@ function editEntrySheet(iso, entryId) {
     const upd = () => { const g = num(qty.value); prev.textContent = g > 0 ? `${fmt0(g)} g → ${fmt0((entry.kcal * g) / entry.grams)} kcal` : ''; };
     qty.addEventListener('input', upd); upd();
     body.append(field('Cantidad (g)', qty), prev, h('div', { class: 'btn-row' },
-      h('button', { class: 'btn danger', type: 'button', onclick: () => { saveDay(iso, (d) => { d.entries = d.entries.filter((e) => e.id !== entryId); }); close(); toast('Entrada borrada'); } }, 'Borrar'),
+      h('button', { class: 'btn danger', type: 'button', onclick: () => { saveDay(iso, (d) => { d.entries = d.entries.filter((e) => e.id !== entryId); }); close(); toast('Entrada borrada', 3000, () => saveDay(iso, (d) => { d.entries = (d.entries || []).concat(entry); })); } }, 'Borrar'),
       h('button', { class: 'btn primary', type: 'button', onclick: () => {
         const g = num(qty.value); if (!(g > 0)) { toast('La cantidad debe ser mayor que 0.'); return; }
         const k = g / entry.grams;
@@ -239,7 +259,8 @@ function openFoodForm(existing, { name, onSaved } = {}) {
     }
     body.append(msg, h('div', { class: 'btn-row' },
       existing ? h('button', { class: 'btn danger', type: 'button', onclick: () => {
-        if (foodUsed(existing.id)) { saveFood({ ...existing, archived: true }); toast('Archivado: ya está en tu registro o en una receta, así que se conserva oculto.', 4000); }
+        if (isBuiltin(existing.id)) { saveFood({ ...existing, archived: true }); toast('Oculto. Lo puedes ver otra vez en Alimentos con «Mostrar archivados».', 4000); }
+        else if (foodUsed(existing.id)) { saveFood({ ...existing, archived: true }); toast('Archivado: ya está en tu registro o en una receta, así que se conserva oculto.', 4000); }
         else { removeFood(existing.id); toast('Alimento eliminado'); }
         close();
       } }, 'Borrar / archivar') : null,

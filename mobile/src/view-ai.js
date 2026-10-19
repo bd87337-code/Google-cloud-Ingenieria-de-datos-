@@ -88,7 +88,7 @@ function aiLogSheet(iso, opts = {}) {
     const out = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }), msg = h('div');
     let items = [], ctl = null;
     const estBtn = h('button', { class: 'btn block', type: 'button' }, 'Estimar');
-    const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealByHour());
+    const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), opts.meal || mealByHour());
     const totEl = h('div', { class: 'big-total num' }), macEl = h('div', { class: 'sub num' });
     const upd = () => { const t = sumEntries(items.map((x) => ({ kcal: x.kcal, p: x.p, c: x.c, f: x.f }))); totEl.textContent = '≈ ' + fmt0(t.kcal) + ' kcal'; macEl.textContent = `Proteína ${fmt0(t.p)} g · Carbohidratos ${fmt0(t.c)} g · Grasa ${fmt0(t.f)} g`; };
 
@@ -173,14 +173,14 @@ function waterCard(iso, day) {
   const add = (d) => saveDay(iso, (x) => { x.water = Math.max(0, (isNum(x.water) ? x.water : 0) + d); });
   return h('section', { class: 'card', 'aria-label': 'Agua' }, h('div', { class: 'card-title' }, h('h2', null, 'Agua'), h('span', { class: 'sub num' }, `${fmtWater(ml)} de ${fmtWater(goal)}`)),
     h('div', { class: 'meter', role: 'progressbar', 'aria-valuenow': Math.round(Math.min(1, ml / goal) * 100), 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: `width:${Math.min(100, (ml / goal) * 100)}%` })),
-    h('div', { class: 'btn-row' }, [[250, '+250 ml'], [500, '+500 ml'], [1000, '+1 L']].map(([v, l]) => h('button', { class: 'btn sm', type: 'button', onclick: () => add(v) }, l)),
+    h('div', { class: 'btn-row tight' }, [[250, '+250 ml'], [500, '+500 ml'], [1000, '+1 L']].map(([v, l]) => h('button', { class: 'btn sm', type: 'button', onclick: () => add(v) }, l)),
       ml > 0 ? h('button', { class: 'btn ghost sm', type: 'button', 'aria-label': 'Quitar 250 ml', onclick: () => add(-250) }, '−250') : null));
 }
 
 /* ---------- ejercicio (solo registro: no se suma a la meta) ---------- */
 function exerciseCard(iso, day) {
   const list = day.exercise || [], totalMin = list.reduce((s, e) => s + e.min, 0);
-  return h('section', { class: 'card', 'aria-label': 'Ejercicio' }, h('div', { class: 'card-title' }, h('h2', null, 'Ejercicio'), list.length ? h('span', { class: 'sub num' }, totalMin + ' min') : null),
+  return h('details', { class: 'card', open: list.length ? true : null }, h('summary', null, 'Ejercicio' + (list.length ? ' · ' + totalMin + ' min' : '')),
     list.length ? h('div', { class: 'list' }, list.map((e) => h('button', { class: 'row', type: 'button', onclick: () => exerciseSheet(iso, e.id) },
       h('div', { class: 'main' }, h('div', { class: 'name' }, e.name), h('div', { class: 'meta num' }, `${e.min} min${isNum(e.kcal) ? ' · ' + fmt0(e.kcal) + ' kcal (tu cálculo)' : ''}`)), h('div', { class: 'end' }, '›'))))
       : h('p', { class: 'sub' }, 'Sin ejercicio registrado este día.'),

@@ -95,7 +95,7 @@ with Session() as s2:   # base vacía: importar lo que exporta la versión Pytho
     p.get_by_role("button", name="Importar", exact=True).click(); p.wait_for_timeout(4000)
     txt = p.locator("#view").inner_text()
     check("Importación completada" in txt, "importación del ZIP de Python completada")
-    got = p.evaluate("({days: Object.keys(S.days).length, entries: Object.values(S.days).reduce((s,d)=>s+(d.entries||[]).length,0), foods: Object.keys(S.foods).length, targets: S.targets.length, prof: !!S.profile, sync: document.getElementById('sync').textContent})")
+    got = p.evaluate("({days: Object.keys(S.days).length, entries: Object.values(S.days).reduce((s,d)=>s+(d.entries||[]).length,0), foods: S.storedFoods.size, targets: S.targets.length, prof: !!S.profile, sync: document.getElementById('sync').textContent})")
     exp_days = len({k for k in docs if "/days/" in k and ("weight" in docs[k] or "entries" in docs[k])})
     check(got["entries"] == repo.conn.execute("select count(*) from food_log").fetchone()[0], f"entradas de comida en la página: {got['entries']}")
     check(got["days"] == exp_days and got["foods"] == 1 and got["targets"] == 1 and got["prof"], f"días={got['days']} (esperados {exp_days}), alimentos, meta y perfil: {got}")
