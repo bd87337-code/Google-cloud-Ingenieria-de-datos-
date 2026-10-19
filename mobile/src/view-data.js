@@ -1,5 +1,5 @@
 /* ===== VISTA DATOS: exportar/importar CSV (mismo formato que la versión de escritorio) ===== */
-const CSV_TABLES = ['profile', 'body_log', 'foods', 'recipes', 'recipe_items', 'food_log', 'day_status', 'targets'];
+const CSV_TABLES = ['profile', 'body_log', 'foods', 'recipes', 'recipe_items', 'food_log', 'day_status', 'targets', 'water_log', 'exercise_log'];   // las dos últimas solo existen en esta versión
 const csvEsc = (v) => { if (v == null) return ''; const s = String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const toCsv = (cols, rows) => '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => csvEsc(r[c])).join(','))].join('\n') + '\n';
 const isoTs = (ms) => (ms ? new Date(ms).toISOString().replace(/\.\d+Z$/, '+00:00') : '');
@@ -23,23 +23,25 @@ function parseCsv(text) {
 
 function exportTables() {
   const out = {}, p = S.profile, dayKeys = Object.keys(S.days).sort();
-  out.profile = toCsv(['sex', 'birth_date', 'height_cm', 'activity_level', 'goal', 'rate_kg_week', 'protein_g_kg_min', 'protein_g_kg_max', 'fat_g_kg_min', 'fat_pct_kcal', 'bmr_method_pref', 'min_valid_day_kcal', 'updated_at'],
-    p ? [{ sex: p.sex, birth_date: p.birth, height_cm: p.heightCm, activity_level: p.activity, goal: p.goal, rate_kg_week: p.rate, protein_g_kg_min: p.pMin, protein_g_kg_max: p.pMax, fat_g_kg_min: p.fatMin, fat_pct_kcal: p.fatPct, bmr_method_pref: p.mifflinOnly ? 'mifflin' : 'auto', min_valid_day_kcal: p.minValidKcal, updated_at: new Date().toISOString() }] : []);
+  out.profile = toCsv(['sex', 'birth_date', 'height_cm', 'activity_level', 'goal', 'rate_kg_week', 'protein_g_kg_min', 'protein_g_kg_max', 'fat_g_kg_min', 'fat_pct_kcal', 'bmr_method_pref', 'min_valid_day_kcal', 'water_goal_ml', 'updated_at'],
+    p ? [{ sex: p.sex, birth_date: p.birth, height_cm: p.heightCm, activity_level: p.activity, goal: p.goal, rate_kg_week: p.rate, protein_g_kg_min: p.pMin, protein_g_kg_max: p.pMax, fat_g_kg_min: p.fatMin, fat_pct_kcal: p.fatPct, bmr_method_pref: p.mifflinOnly ? 'mifflin' : 'auto', min_valid_day_kcal: p.minValidKcal, water_goal_ml: p.waterMl, updated_at: new Date().toISOString() }] : []);
   out.body_log = toCsv(['date', 'weight_kg', 'body_fat_pct', 'body_fat_source', 'waist_cm', 'neck_cm', 'hip_cm', 'note'],
     dayKeys.filter((k) => { const d = S.days[k]; return isNum(d.weight) || isNum(d.bf) || isNum(d.waist) || isNum(d.neck) || isNum(d.hip) || d.note; })
       .map((k) => { const d = S.days[k]; return { date: k, weight_kg: d.weight, body_fat_pct: d.bf, body_fat_source: d.bfSource, waist_cm: d.waist, neck_cm: d.neck, hip_cm: d.hip, note: d.note }; }));
   const foods = foodList().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   out.foods = toCsv(['uid', 'name', 'brand', 'source', 'barcode', 'kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g', 'serving_g', 'serving_label', 'data_flag', 'archived', 'off_fetched_at', 'created_at'],
-    foods.map((f) => ({ uid: f.id, name: f.name, brand: f.brand, source: f.source === 'ai' ? 'custom' : f.source, barcode: f.barcode, kcal_100g: f.kcal, protein_100g: f.p, carbs_100g: f.c, fat_100g: f.f,
-      serving_g: f.servingG, serving_label: f.servingLabel, data_flag: f.source === 'ai' ? 'ai_estimate' : null, archived: f.archived ? 1 : 0, off_fetched_at: null, created_at: isoTs(f.createdAt) })));
+    foods.map((f) => ({ uid: f.id, name: f.name, brand: f.brand, source: ['ai', 'usda', 'label'].includes(f.source) ? 'custom' : f.source, barcode: f.barcode, kcal_100g: f.kcal, protein_100g: f.p, carbs_100g: f.c, fat_100g: f.f,
+      serving_g: f.servingG, serving_label: f.servingLabel, data_flag: f.source === 'ai' ? 'ai_estimate' : f.source === 'usda' ? 'usda:' + (f.fdc || '') : f.source === 'label' ? 'label_photo' : null, archived: f.archived ? 1 : 0, off_fetched_at: null, created_at: isoTs(f.createdAt) })));
   const recipes = foods.filter((f) => f.recipe);
   out.recipes = toCsv(['food_uid', 'total_yield_g', 'servings'], recipes.map((f) => ({ food_uid: f.id, total_yield_g: f.recipe.yieldG, servings: f.recipe.servings })));
   out.recipe_items = toCsv(['recipe_uid', 'ingredient_uid', 'grams'], recipes.flatMap((f) => f.recipe.items.map((i) => ({ recipe_uid: f.id, ingredient_uid: i.foodId, grams: i.grams }))));
-  out.food_log = toCsv(['uid', 'date', 'meal', 'food_uid', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'created_at'],
-    dayKeys.flatMap((k) => (S.days[k].entries || []).map((e) => ({ uid: e.id, date: k, meal: e.meal, food_uid: e.foodId, grams: e.grams, kcal: e.kcal, protein_g: e.p, carbs_g: e.c, fat_g: e.f, created_at: isoTs(e.at) }))));
+  out.food_log = toCsv(['uid', 'date', 'meal', 'food_uid', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'created_at', 'estimated'],
+    dayKeys.flatMap((k) => (S.days[k].entries || []).map((e) => ({ uid: e.id, date: k, meal: e.meal, food_uid: e.foodId, grams: e.grams, kcal: e.kcal, protein_g: e.p, carbs_g: e.c, fat_g: e.f, created_at: isoTs(e.at), estimated: e.est ? 1 : 0 }))));
   out.day_status = toCsv(['date', 'food_complete'], dayKeys.filter((k) => typeof S.days[k].forced === 'boolean').map((k) => ({ date: k, food_complete: S.days[k].forced ? 1 : 0 })));
   out.targets = toCsv(['effective_from', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'tdee_source', 'bmr_method', 'note'],
     sortedTargets().map((t) => ({ effective_from: t.from, kcal: t.kcal, protein_g: t.p, carbs_g: t.c, fat_g: t.f, tdee_source: t.source, bmr_method: t.bmrMethod, note: t.note })));
+  out.water_log = toCsv(['date', 'ml'], dayKeys.filter((k) => S.days[k].water > 0).map((k) => ({ date: k, ml: S.days[k].water })));
+  out.exercise_log = toCsv(['uid', 'date', 'name', 'minutes', 'kcal'], dayKeys.flatMap((k) => (S.days[k].exercise || []).map((e) => ({ uid: e.id, date: k, name: e.name, minutes: e.min, kcal: e.kcal }))));
   return out;
 }
 
@@ -66,7 +68,7 @@ function planImport(files) {
     const r = rowCtx('profile', 0);
     const o = { sex: r.pick('sex', ['M', 'F']), birth: r.date('birth_date'), heightCm: r.n('height_cm', { req: true, min: 0, exMin: true, max: 260 }), activity: r.pick('activity_level', Object.keys(ACTIVITY_FACTORS)), goal: r.pick('goal', ['maintain', 'gain', 'lose']),
       rate: r.n('rate_kg_week', { min: 0 }) ?? 0, pMin: r.n('protein_g_kg_min', { min: 0, exMin: true }) ?? 1.6, pMax: r.n('protein_g_kg_max', { min: 0, exMin: true }) ?? 2.2, fatMin: r.n('fat_g_kg_min', { min: 0 }) ?? 0.6,
-      fatPct: r.n('fat_pct_kcal', { min: 0, max: 0.99 }) ?? 0.25, mifflinOnly: r.txt('bmr_method_pref') === 'mifflin', minValidKcal: r.n('min_valid_day_kcal', { min: 0 }) ?? 1000 };
+      fatPct: r.n('fat_pct_kcal', { min: 0, max: 0.99 }) ?? 0.25, mifflinOnly: r.txt('bmr_method_pref') === 'mifflin', minValidKcal: r.n('min_valid_day_kcal', { min: 0 }) ?? 1000, waterMl: r.n('water_goal_ml', { min: 500, max: 6000 }) ?? 2000 };
     if (o.pMax < o.pMin) errors.push("profile.csv fila 2, columna 'protein_g_kg_max': debe ser ≥ protein_g_kg_min");
     plan.profile = o;
   }
@@ -80,7 +82,7 @@ function planImport(files) {
   if (need('foods', ['uid', 'name', 'kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g'])) T.foods.rows.forEach((_, i) => {
     const r = rowCtx('foods', i), id = r.txt('uid', true), name = r.txt('name', true), srcRaw = r.pick('source', ['custom', 'off', 'recipe'], false) || 'custom';
     const food = { id, name, brand: r.txt('brand'), kcal: r.n('kcal_100g', { req: true, min: 0, max: 900 }), p: r.n('protein_100g', { req: true, min: 0, max: 100 }), c: r.n('carbs_100g', { req: true, min: 0, max: 100 }), f: r.n('fat_100g', { req: true, min: 0, max: 100 }),
-      servingG: r.n('serving_g', { min: 0, exMin: true }), servingLabel: r.txt('serving_label'), source: srcRaw === 'custom' && r.txt('data_flag') === 'ai_estimate' ? 'ai' : srcRaw, archived: ['1', 'true', 'True'].includes(T.foods.rows[i].archived), createdAt: Date.parse(r.txt('created_at') || '') || Date.now() };
+      servingG: r.n('serving_g', { min: 0, exMin: true }), servingLabel: r.txt('serving_label'), source: srcRaw === 'custom' ? (r.txt('data_flag') === 'ai_estimate' ? 'ai' : /^usda:/.test(r.txt('data_flag') || '') ? 'usda' : r.txt('data_flag') === 'label_photo' ? 'label' : 'custom') : srcRaw, fdc: /^usda:\d+$/.test(r.txt('data_flag') || '') ? Number(r.txt('data_flag').slice(5)) : null, archived: ['1', 'true', 'True'].includes(T.foods.rows[i].archived), createdAt: Date.parse(r.txt('created_at') || '') || Date.now() };
     if (id && name && isNum(food.p) && isNum(food.c) && isNum(food.f) && food.p + food.c + food.f > 100.5) errors.push(`foods.csv fila ${i + 2}: proteína + carbohidratos + grasa suman más de 100 g por 100 g`);
     if (id) plan.foods[id] = food;
   });
@@ -101,9 +103,11 @@ function planImport(files) {
     const r = rowCtx('food_log', i), id = r.txt('uid', true), d = r.date('date'), meal = r.pick('meal', MEALS), fid = r.txt('food_uid', true), g = r.n('grams', { req: true, min: 0, exMin: true });
     const m = ['kcal', 'protein_g', 'carbs_g', 'fat_g'].map((c) => r.n(c, { req: true, min: 0 }));
     if (fid && !foodOf(fid)) errors.push(`food_log.csv fila ${i + 2}, columna 'food_uid': el alimento '${fid}' no existe`);
-    if (id && d && meal && fid && foodOf(fid) && g && m.every(isNum)) { const f = foodOf(fid); patch(d).entries.push({ id, meal, foodId: fid, name: f.name, brand: f.brand || null, grams: g, kcal: m[0], p: m[1], c: m[2], f: m[3], at: Date.parse(r.txt('created_at') || '') || Date.now() }); }
+    if (id && d && meal && fid && foodOf(fid) && g && m.every(isNum)) { const f = foodOf(fid); patch(d).entries.push({ id, meal, foodId: fid, name: f.name, brand: f.brand || null, grams: g, kcal: m[0], p: m[1], c: m[2], f: m[3], at: Date.parse(r.txt('created_at') || '') || Date.now(), ...(['1', 'true'].includes(T.food_log.rows[i].estimated) ? { est: true } : {}) }); }
   });
   if (need('day_status', ['date', 'food_complete'])) T.day_status.rows.forEach((_, i) => { const r = rowCtx('day_status', i), d = r.date('date'), v = r.pick('food_complete', ['0', '1'], false); if (d) patch(d).forced = v == null ? null : v === '1'; });
+  if (need('water_log', ['date', 'ml'])) T.water_log.rows.forEach((_, i) => { const r = rowCtx('water_log', i), d = r.date('date'), ml = r.n('ml', { req: true, min: 0, max: 20000 }); if (d && ml != null) patch(d).water = ml; });
+  if (need('exercise_log', ['uid', 'date', 'name', 'minutes'])) T.exercise_log.rows.forEach((_, i) => { const r = rowCtx('exercise_log', i), id = r.txt('uid', true), d = r.date('date'), nm = r.txt('name', true), m = r.n('minutes', { req: true, min: 0, exMin: true, max: 1440 }), k = r.n('kcal', { min: 0, max: 5000 }); if (id && d && nm && m != null) (patch(d).exercise = patch(d).exercise || []).push({ id, name: nm, min: m, kcal: k }); });
   if (need('targets', ['effective_from', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'tdee_source'])) T.targets.rows.forEach((_, i) => {
     const r = rowCtx('targets', i), d = r.date('effective_from'), k = r.n('kcal', { req: true, min: 0, exMin: true }), m = ['protein_g', 'carbs_g', 'fat_g'].map((c) => r.n(c, { req: true, min: 0 })), s = r.pick('tdee_source', ['formula', 'data', 'manual']);
     if (d && k && s && m.every(isNum)) plan.targets.push({ from: d, kcal: k, p: m[0], c: m[1], f: m[2], source: s, bmrMethod: r.txt('bmr_method'), note: r.txt('note') });
@@ -126,6 +130,8 @@ async function applyImport(plan, mode, onProgress) {
     if (pt.body) for (const [k, v] of Object.entries(pt.body)) { if (v == null) delete doc[k]; else doc[k] = v; }
     if (!isNum(doc.bf)) delete doc.bfSource;
     if (pt.entries.length) { const map = new Map((doc.entries || []).map((e) => [e.id, e])); pt.entries.forEach((e) => map.set(e.id, e)); doc.entries = [...map.values()]; }
+    if (isNum(pt.water)) doc.water = pt.water;
+    if (pt.exercise && pt.exercise.length) { const em = new Map((doc.exercise || []).map((e) => [e.id, e])); pt.exercise.forEach((e) => em.set(e.id, e)); doc.exercise = [...em.values()]; }
     if ('forced' in pt) { if (pt.forced == null) delete doc.forced; else doc.forced = pt.forced; }
     if (!isEmptyDay(doc)) ops.push(() => S.backend.put('days', iso, doc));
   }

@@ -9,8 +9,17 @@ claude.ai y se abre desde la app de Claude; no hay que instalar nada ni tener la
 - **Qué comparte con la versión de escritorio:** los mismos cálculos (portados a JavaScript y **validados
   contra la implementación Python**, ver abajo) y el mismo formato de CSV/ZIP: se puede exportar en una y
   importar en la otra.
-- **Qué no tiene:** Open Food Facts (una página publicada no puede salir a internet). A cambio, al crear un
-  alimento se puede pedir a Claude una estimación de macros, que queda marcada como «estimado por IA».
+- **Qué no tiene:** Open Food Facts ni escáner de código de barras (una página publicada no puede salir a internet
+  ni usar la cámara en vivo). A cambio:
+  - **Base inicial** de 97 alimentos básicos (tortilla, frijol, pollo, huevo, queso fresco, frutas, verduras…) de
+    **USDA FoodData Central (SR Legacy, dominio público)**, cada uno con su número de registro (`fdc`) para poder
+    verificarlo. Se regenera con `mobile/seed/build_seed.py`. Son valores genéricos: marcas y recetas propias pueden diferir.
+  - **Registro por texto o foto con IA**: Claude estima calorías y macros; el usuario corrige gramos antes de guardar.
+    Las entradas quedan marcadas «estimado», se avisa qué % del día es estimado y, si pasa de 30 % de una ventana de
+    análisis, se advierte que sesga a la baja el gasto «por datos». Se validan las respuestas (descarta lo imposible
+    y fuerza coherencia kcal ↔ macros).
+  - **Foto de la etiqueta nutrimental**: lee los números impresos y los convierte a valores por 100 g.
+  - **Agua** y **ejercicio** (el ejercicio es solo referencia: no se suma a la meta calórica).
 
 ## Estructura
 
@@ -18,7 +27,8 @@ claude.ai y se abre desde la app de Claude; no hay que instalar nada ni tener la
 src/calc.js       Cálculos puros (BMR, metas, macros, series con huecos, gasto por datos con IC al 95 %)
 src/store.js      Persistencia: db de Claude (nube) con respaldo en localStorage
 src/app-core.js   Estado, ayudantes de interfaz, plan de metas
-src/view-*.js     Pantallas: Hoy, Alimentos, Metas, Progreso, Datos (CSV/ZIP)
+src/view-*.js     Pantallas: Hoy, Alimentos, Metas, Progreso, Datos (CSV/ZIP); view-ai.js: IA, etiqueta, agua, ejercicio
+src/seed-foods.js Base inicial (generada)   seed/build_seed.py  Generador desde USDA
 src/boot.js       Arranque
 src/style.css     Estilos (claro/oscuro)         src/page.html   Plantilla
 build.py          Ensambla todo en macro-tracker.html (lo que se publica)
@@ -30,10 +40,11 @@ tests/            Pruebas (ver abajo)
 ```bash
 python3 mobile/build.py                                   # genera macro-tracker.html
 .venv/bin/python mobile/tests/gen_fixtures.py             # resultados de referencia de la versión Python
-node --test mobile/tests/calc.test.mjs                    # el port JS reproduce a Python número por número
+node --test mobile/tests/calc.test.mjs mobile/tests/ai.test.mjs   # el port JS reproduce a Python; validación de IA y base USDA
 .venv/bin/pip install playwright                          # una vez; usa el Chromium ya instalado
 .venv/bin/python mobile/tests/e2e_flow.py                 # perfil → alimentos y receta → registro → recarga
 .venv/bin/python mobile/tests/e2e_history.py              # 10 semanas: gráficos, números vs Python, CSV en ambos sentidos
+.venv/bin/python mobile/tests/e2e_features.py             # base USDA, IA por texto/foto, etiqueta, agua, ejercicio, CSV
 ```
 
 Las pruebas de navegador usan `tests/mock_claude.js`, una simulación de `window.claude` (db, user, sample,

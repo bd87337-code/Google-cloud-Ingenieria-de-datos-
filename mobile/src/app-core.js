@@ -15,7 +15,7 @@ const STALE_WEIGHT_DAYS = 14, STALE_BF_DAYS = 90;
 const S = {
   backend: null, mode: 'local', pending: 0, profile: null, days: {}, foods: {}, targets: [],
   loaded: { profile: false, days: false, foods: false, targets: false },
-  tab: 'today', date: todayIso(), caps: { sample: null, downloads: null },
+  tab: 'today', date: todayIso(), caps: { sample: null, downloads: null, images: false }, seedBusy: false,
   range: { preset: '90', start: null, end: null }, tdeeWindow: 14, showArchived: false, foodFilter: 'all',
 };
 
@@ -124,11 +124,13 @@ function updateSync() {
   el.dataset.state = st;
   el.textContent = st === 'saving' ? 'Guardando…' : st === 'cloud' ? 'Guardado en tu cuenta' : 'Solo en este navegador';
 }
-const isEmptyDay = (d) => !isNum(d.weight) && !isNum(d.bf) && !isNum(d.waist) && !isNum(d.neck) && !isNum(d.hip) && !d.note && !(d.entries && d.entries.length) && typeof d.forced !== 'boolean';
+const isEmptyDay = (d) => !isNum(d.weight) && !isNum(d.bf) && !isNum(d.waist) && !isNum(d.neck) && !isNum(d.hip) && !d.note && !(d.entries && d.entries.length) && typeof d.forced !== 'boolean' && !(d.water > 0) && !(d.exercise && d.exercise.length);
 function saveDay(iso, mutate) {
   const doc = clone(S.days[iso] || { date: iso });
   mutate(doc);
   for (const k of ['weight', 'bf', 'waist', 'neck', 'hip', 'note', 'bfSource', 'forced']) if (doc[k] == null || doc[k] === '') delete doc[k];
+  if (!(doc.water > 0)) delete doc.water;
+  if (!doc.exercise || !doc.exercise.length) delete doc.exercise;
   if (!isNum(doc.bf)) delete doc.bfSource;
   const empty = isEmptyDay(doc);
   if (empty) delete S.days[iso]; else S.days[iso] = doc;

@@ -221,6 +221,57 @@ function recommendTarget(data, currentKcal, goal, rate, bmr, o = {}) {
     limitedByStep: Math.abs(diff) > maxStep, limitedByFloor };
 }
 
+
+/* ---------- estimaciones de IA: validación y conversión (pura, sin DOM) ---------- */
+const kcalFromMacros = (p, c, f) => 4 * p + 4 * c + 9 * f;
+const kcalMismatch = (kcal, p, c, f) => { const exp = kcalFromMacros(p, c, f); return Math.abs(kcal - exp) > Math.max(0.15 * Math.max(kcal, exp), 20); };
+/** Limpia la respuesta de la IA para una comida: descarta lo imposible y fuerza coherencia kcal ↔ macros.
+ *  raw: array o { items: [...] } con { name, grams, kcal, protein, carbs, fat, confidence, note } (totales del renglón, no por 100 g). */
+function normalizeAiItems(raw) {
+  const arr = Array.isArray(raw) ? raw : raw && Array.isArray(raw.items) ? raw.items : [];
+  const out = [];
+  for (const it of arr.slice(0, 15)) {
+    if (!it || typeof it !== 'object') continue;
+    const name = String(it.name || '').trim().slice(0, 80);
+    const grams = Number(it.grams), p = Number(it.protein ?? it.p), c = Number(it.carbs ?? it.c), f = Number(it.fat ?? it.f);
+    let kcal = Number(it.kcal);
+    if (!name || !(grams > 0) || grams > 3000 || ![p, c, f].every((x) => Number.isFinite(x) && x >= 0)) continue;
+    if ((p + c + f) * 100 / grams > 100.5) continue;              // más de 100 g de macros por cada 100 g: imposible
+    let adjusted = false;
+    if (!Number.isFinite(kcal) || kcal < 0 || kcalMismatch(kcal, p, c, f)) { kcal = kcalFromMacros(p, c, f); adjusted = true; }
+    if (kcal * 100 / grams > 950) continue;                        // por encima de la grasa pura
+    const confidence = ['alta', 'media', 'baja'].includes(it.confidence) ? it.confidence : 'media';
+    out.push({ name, grams, kcal, p, c, f, confidence, note: String(it.note || '').slice(0, 160), adjusted });
+  }
+  return out;
+}
+/** Convierte lo leído de una etiqueta nutrimental a valores por 100 g.
+ *  label: { basis: 'per100g'|'per100ml'|'perServing', servingG, servingLabel, kcal, protein, carbs, fat } */
+function labelToPer100(label) {
+  if (!label || typeof label !== 'object') return { ok: false, reason: 'unreadable' };
+  const k = Number(label.kcal), p = Number(label.protein), c = Number(label.carbs), f = Number(label.fat);
+  if (![k, p, c, f].every((x) => Number.isFinite(x) && x >= 0)) return { ok: false, reason: 'unreadable' };
+  const basis = label.basis;
+  const sg = Number(label.servingG);
+  let factor;
+  if (basis === 'per100g' || basis === 'per100ml') factor = 1;
+  else if (basis === 'perServing') { if (!(sg > 0)) return { ok: false, reason: 'no_serving' }; factor = 100 / sg; }
+  else return { ok: false, reason: 'unreadable' };
+  const v = { kcal: k * factor, p: p * factor, c: c * factor, f: f * factor };
+  if (v.kcal > 950 || v.p + v.c + v.f > 100.5) return { ok: false, reason: 'implausible' };
+  return { ok: true, ...v, servingG: sg > 0 ? sg : null, servingLabel: label.servingLabel ? String(label.servingLabel).slice(0, 60) : null,
+    perMl: basis === 'per100ml', mismatch: kcalMismatch(v.kcal, v.p, v.c, v.f) };
+}
+/** % de las calorías de los días válidos que vienen de entradas estimadas por IA (0–1). */
+function estimatedShare(days, startIso, endIso) {
+  let est = 0, tot = 0;
+  for (let n = dayNum(startIso); n <= dayNum(endIso); n++) {
+    const d = days[isoOf(n)]; if (!d || !d.entries) continue;
+    for (const e of d.entries) { tot += e.kcal; if (e.est) est += e.kcal; }
+  }
+  return tot > 0 ? est / tot : 0;
+}
+
 /* ---------- tabla diaria a partir de los datos guardados ---------- */
 const dayKcal = (day) => (day && day.entries && day.entries.length ? day.entries.reduce((s, e) => s + e.kcal, 0) : NaN);
 /** data = { days: {iso: doc}, targets: [{from,...}] ordenados, profile }. Devuelve arrays alineados entre start y end. */
@@ -266,5 +317,6 @@ function formulaSeries(full, profile) {
 if (typeof module !== 'undefined') {
   module.exports = { KCAL_PER_KG, ACTIVITY_FACTORS, CFG, dayNum, isoOf, addDays, todayIso, dateRange, ageOn, mifflin, katch, estimateBmr,
     proteinRefWeight, navyBodyFat, activityFactor, goalAdjustment, calorieTarget, macroTargets, movingAverage, interpolateBf,
-    validFoodDays, weeklyIntake, t95, linearFit, estimateTdee, rollingTdee, recommendTarget, buildFrame, formulaSeries, dayKcal };
+    validFoodDays, weeklyIntake, t95, linearFit, estimateTdee, rollingTdee, recommendTarget, buildFrame, formulaSeries, dayKcal,
+    kcalFromMacros, kcalMismatch, normalizeAiItems, labelToPer100, estimatedShare };
 }

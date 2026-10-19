@@ -31,7 +31,7 @@ async function boot() {
   got('foods', (docs) => { S.foods = Object.fromEntries(docs.map((d) => [d.id, { ...d, id: d.id }])); });
   got('targets', (docs) => { S.targets = docs.map((d) => ({ ...d, from: d.from || d.id })); });
   if (window.claude && window.claude.use) {
-    window.claude.use('sample').then((s) => { S.caps.sample = s; }).catch(() => {});
+    window.claude.use('sample').then((s) => { S.caps.sample = s; if (s && s.limits) s.limits().then((l) => { S.caps.images = !!(l && l.images); }).catch(() => {}); }).catch(() => {});
     window.claude.use('downloads').then((d) => { S.caps.downloads = d; }).catch(() => {});
   }
 }

@@ -399,6 +399,57 @@ function recommendTarget(data, currentKcal, goal, rate, bmr, o = {}) {
     limitedByStep: Math.abs(diff) > maxStep, limitedByFloor };
 }
 
+
+/* ---------- estimaciones de IA: validación y conversión (pura, sin DOM) ---------- */
+const kcalFromMacros = (p, c, f) => 4 * p + 4 * c + 9 * f;
+const kcalMismatch = (kcal, p, c, f) => { const exp = kcalFromMacros(p, c, f); return Math.abs(kcal - exp) > Math.max(0.15 * Math.max(kcal, exp), 20); };
+/** Limpia la respuesta de la IA para una comida: descarta lo imposible y fuerza coherencia kcal ↔ macros.
+ *  raw: array o { items: [...] } con { name, grams, kcal, protein, carbs, fat, confidence, note } (totales del renglón, no por 100 g). */
+function normalizeAiItems(raw) {
+  const arr = Array.isArray(raw) ? raw : raw && Array.isArray(raw.items) ? raw.items : [];
+  const out = [];
+  for (const it of arr.slice(0, 15)) {
+    if (!it || typeof it !== 'object') continue;
+    const name = String(it.name || '').trim().slice(0, 80);
+    const grams = Number(it.grams), p = Number(it.protein ?? it.p), c = Number(it.carbs ?? it.c), f = Number(it.fat ?? it.f);
+    let kcal = Number(it.kcal);
+    if (!name || !(grams > 0) || grams > 3000 || ![p, c, f].every((x) => Number.isFinite(x) && x >= 0)) continue;
+    if ((p + c + f) * 100 / grams > 100.5) continue;              // más de 100 g de macros por cada 100 g: imposible
+    let adjusted = false;
+    if (!Number.isFinite(kcal) || kcal < 0 || kcalMismatch(kcal, p, c, f)) { kcal = kcalFromMacros(p, c, f); adjusted = true; }
+    if (kcal * 100 / grams > 950) continue;                        // por encima de la grasa pura
+    const confidence = ['alta', 'media', 'baja'].includes(it.confidence) ? it.confidence : 'media';
+    out.push({ name, grams, kcal, p, c, f, confidence, note: String(it.note || '').slice(0, 160), adjusted });
+  }
+  return out;
+}
+/** Convierte lo leído de una etiqueta nutrimental a valores por 100 g.
+ *  label: { basis: 'per100g'|'per100ml'|'perServing', servingG, servingLabel, kcal, protein, carbs, fat } */
+function labelToPer100(label) {
+  if (!label || typeof label !== 'object') return { ok: false, reason: 'unreadable' };
+  const k = Number(label.kcal), p = Number(label.protein), c = Number(label.carbs), f = Number(label.fat);
+  if (![k, p, c, f].every((x) => Number.isFinite(x) && x >= 0)) return { ok: false, reason: 'unreadable' };
+  const basis = label.basis;
+  const sg = Number(label.servingG);
+  let factor;
+  if (basis === 'per100g' || basis === 'per100ml') factor = 1;
+  else if (basis === 'perServing') { if (!(sg > 0)) return { ok: false, reason: 'no_serving' }; factor = 100 / sg; }
+  else return { ok: false, reason: 'unreadable' };
+  const v = { kcal: k * factor, p: p * factor, c: c * factor, f: f * factor };
+  if (v.kcal > 950 || v.p + v.c + v.f > 100.5) return { ok: false, reason: 'implausible' };
+  return { ok: true, ...v, servingG: sg > 0 ? sg : null, servingLabel: label.servingLabel ? String(label.servingLabel).slice(0, 60) : null,
+    perMl: basis === 'per100ml', mismatch: kcalMismatch(v.kcal, v.p, v.c, v.f) };
+}
+/** % de las calorías de los días válidos que vienen de entradas estimadas por IA (0–1). */
+function estimatedShare(days, startIso, endIso) {
+  let est = 0, tot = 0;
+  for (let n = dayNum(startIso); n <= dayNum(endIso); n++) {
+    const d = days[isoOf(n)]; if (!d || !d.entries) continue;
+    for (const e of d.entries) { tot += e.kcal; if (e.est) est += e.kcal; }
+  }
+  return tot > 0 ? est / tot : 0;
+}
+
 /* ---------- tabla diaria a partir de los datos guardados ---------- */
 const dayKcal = (day) => (day && day.entries && day.entries.length ? day.entries.reduce((s, e) => s + e.kcal, 0) : NaN);
 /** data = { days: {iso: doc}, targets: [{from,...}] ordenados, profile }. Devuelve arrays alineados entre start y end. */
@@ -444,7 +495,8 @@ function formulaSeries(full, profile) {
 if (typeof module !== 'undefined') {
   module.exports = { KCAL_PER_KG, ACTIVITY_FACTORS, CFG, dayNum, isoOf, addDays, todayIso, dateRange, ageOn, mifflin, katch, estimateBmr,
     proteinRefWeight, navyBodyFat, activityFactor, goalAdjustment, calorieTarget, macroTargets, movingAverage, interpolateBf,
-    validFoodDays, weeklyIntake, t95, linearFit, estimateTdee, rollingTdee, recommendTarget, buildFrame, formulaSeries, dayKcal };
+    validFoodDays, weeklyIntake, t95, linearFit, estimateTdee, rollingTdee, recommendTarget, buildFrame, formulaSeries, dayKcal,
+    kcalFromMacros, kcalMismatch, normalizeAiItems, labelToPer100, estimatedShare };
 }
 
 /* ===== STORE: persistencia. Nube (db de Claude, privado por usuario) con respaldo en localStorage ===== */
@@ -512,6 +564,1174 @@ async function openBackend() {
 
 if (typeof module !== 'undefined') module.exports = { openBackend, makeLocalBackend, makeCloudBackend, KINDS };
 
+/* Generado por mobile/seed/build_seed.py. Fuente: USDA FoodData Central, SR Legacy (dominio público). */
+const SEED_FOODS = [
+{
+"id": "usda-175036",
+"name": "Tortilla de maíz",
+"kcal": 218.0,
+"p": 5.7,
+"c": 44.6,
+"f": 2.9,
+"servingG": 24,
+"servingLabel": "1 tortilla",
+"fdc": 175036,
+"usda": "Tortillas, ready-to-bake or -fry, corn"
+},
+{
+"id": "usda-167535",
+"name": "Tortilla de harina",
+"kcal": 297.0,
+"p": 8.0,
+"c": 49.3,
+"f": 7.6,
+"servingG": 49,
+"servingLabel": "1 tortilla",
+"fdc": 167535,
+"usda": "Tortillas, ready-to-bake or -fry, flour, shelf stable"
+},
+{
+"id": "usda-168878",
+"name": "Arroz blanco cocido",
+"kcal": 130.0,
+"p": 2.7,
+"c": 28.2,
+"f": 0.3,
+"servingG": 158,
+"servingLabel": "1 taza",
+"fdc": 168878,
+"usda": "Rice, white, long-grain, regular, enriched, cooked"
+},
+{
+"id": "usda-169704",
+"name": "Arroz integral cocido",
+"kcal": 123.0,
+"p": 2.7,
+"c": 25.6,
+"f": 1.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169704,
+"usda": "Rice, brown, long-grain, cooked (Includes foods for USDA's Food Distribution Program)"
+},
+{
+"id": "usda-173904",
+"name": "Avena en hojuelas (cruda)",
+"kcal": 379.0,
+"p": 13.2,
+"c": 67.7,
+"f": 6.5,
+"servingG": 27,
+"servingLabel": "⅓ de taza",
+"fdc": 173904,
+"usda": "Cereals, oats, regular and quick, not fortified, dry"
+},
+{
+"id": "usda-173905",
+"name": "Avena cocida con agua",
+"kcal": 71.0,
+"p": 2.5,
+"c": 12.0,
+"f": 1.5,
+"servingG": null,
+"servingLabel": null,
+"fdc": 173905,
+"usda": "Cereals, oats, regular and quick, unenriched, cooked with water (includes boiling and micr"
+},
+{
+"id": "usda-174924",
+"name": "Pan blanco de caja",
+"kcal": 266.0,
+"p": 8.8,
+"c": 49.4,
+"f": 3.3,
+"servingG": 29,
+"servingLabel": "1 rebanada",
+"fdc": 174924,
+"usda": "Bread, white, commercially prepared (includes soft bread crumbs)"
+},
+{
+"id": "usda-172688",
+"name": "Pan integral de caja",
+"kcal": 252.0,
+"p": 12.4,
+"c": 42.7,
+"f": 3.5,
+"servingG": 32,
+"servingLabel": "1 rebanada",
+"fdc": 172688,
+"usda": "Bread, whole-wheat, commercially prepared"
+},
+{
+"id": "usda-175031",
+"name": "Pan duro tipo bolillo (aprox.)",
+"kcal": 293.0,
+"p": 9.9,
+"c": 52.7,
+"f": 4.3,
+"servingG": 57,
+"servingLabel": "1 pieza",
+"fdc": 175031,
+"usda": "Rolls, hard (includes kaiser)"
+},
+{
+"id": "usda-169737",
+"name": "Pasta cocida",
+"kcal": 158.0,
+"p": 5.8,
+"c": 30.9,
+"f": 0.9,
+"servingG": 124,
+"servingLabel": "1 taza de espagueti",
+"fdc": 169737,
+"usda": "Pasta, cooked, enriched, without added salt"
+},
+{
+"id": "usda-170438",
+"name": "Papa cocida con cáscara",
+"kcal": 87.0,
+"p": 1.9,
+"c": 20.1,
+"f": 0.1,
+"servingG": 136,
+"servingLabel": "1 papa",
+"fdc": 170438,
+"usda": "Potatoes, boiled, cooked in skin, flesh, without salt"
+},
+{
+"id": "usda-168483",
+"name": "Camote horneado",
+"kcal": 90.0,
+"p": 2.0,
+"c": 20.7,
+"f": 0.1,
+"servingG": 60,
+"servingLabel": "1 chico",
+"fdc": 168483,
+"usda": "Sweet potato, cooked, baked in skin, flesh, without salt"
+},
+{
+"id": "usda-169999",
+"name": "Elote cocido (granos)",
+"kcal": 96.0,
+"p": 3.4,
+"c": 21.0,
+"f": 1.5,
+"servingG": 103,
+"servingLabel": "1 elote mediano",
+"fdc": 169999,
+"usda": "Corn, sweet, yellow, cooked, boiled, drained, without salt"
+},
+{
+"id": "usda-167558",
+"name": "Totopos de maíz blanco, salados",
+"kcal": 472.0,
+"p": 7.1,
+"c": 67.8,
+"f": 20.7,
+"servingG": 28,
+"servingLabel": "1 onza",
+"fdc": 167558,
+"usda": "Snacks, tortilla chips, plain, white corn, salted"
+},
+{
+"id": "usda-172800",
+"name": "Concha de taco horneada",
+"kcal": 476.0,
+"p": 6.4,
+"c": 63.5,
+"f": 21.8,
+"servingG": null,
+"servingLabel": null,
+"fdc": 172800,
+"usda": "Taco shells, baked"
+},
+{
+"id": "usda-172746",
+"name": "Galletas saladas",
+"kcal": 418.0,
+"p": 9.5,
+"c": 74.0,
+"f": 8.6,
+"servingG": null,
+"servingLabel": null,
+"fdc": 172746,
+"usda": "Crackers, saltines (includes oyster, soda, soup)"
+},
+{
+"id": "usda-173735",
+"name": "Frijol negro cocido (sin sal)",
+"kcal": 132.0,
+"p": 8.9,
+"c": 23.7,
+"f": 0.5,
+"servingG": 172,
+"servingLabel": "1 taza",
+"fdc": 173735,
+"usda": "Beans, black, mature seeds, cooked, boiled, without salt"
+},
+{
+"id": "usda-175200",
+"name": "Frijol pinto cocido (sin sal)",
+"kcal": 143.0,
+"p": 9.0,
+"c": 26.2,
+"f": 0.7,
+"servingG": null,
+"servingLabel": null,
+"fdc": 175200,
+"usda": "Beans, pinto, mature seeds, cooked, boiled, without salt"
+},
+{
+"id": "usda-172438",
+"name": "Frijoles refritos enlatados",
+"kcal": 90.0,
+"p": 5.0,
+"c": 13.6,
+"f": 2.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 172438,
+"usda": "Refried beans, canned, traditional style"
+},
+{
+"id": "usda-172421",
+"name": "Lentejas cocidas (sin sal)",
+"kcal": 116.0,
+"p": 9.0,
+"c": 20.1,
+"f": 0.4,
+"servingG": 198,
+"servingLabel": "1 taza",
+"fdc": 172421,
+"usda": "Lentils, mature seeds, cooked, boiled, without salt"
+},
+{
+"id": "usda-173757",
+"name": "Garbanzo cocido (sin sal)",
+"kcal": 164.0,
+"p": 8.9,
+"c": 27.4,
+"f": 2.6,
+"servingG": null,
+"servingLabel": null,
+"fdc": 173757,
+"usda": "Chickpeas (garbanzo beans, bengal gram), mature seeds, cooked, boiled, without salt"
+},
+{
+"id": "usda-171477",
+"name": "Pechuga de pollo asada, sin piel",
+"kcal": 165.0,
+"p": 31.0,
+"c": 0.0,
+"f": 3.6,
+"servingG": 86,
+"servingLabel": "½ pechuga",
+"fdc": 171477,
+"usda": "Chicken, broilers or fryers, breast, meat only, cooked, roasted"
+},
+{
+"id": "usda-172388",
+"name": "Muslo de pollo asado, sin piel",
+"kcal": 179.0,
+"p": 24.8,
+"c": 0.0,
+"f": 8.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 172388,
+"usda": "Chicken, broilers or fryers, thigh, meat only, cooked, roasted"
+},
+{
+"id": "usda-173424",
+"name": "Huevo entero cocido",
+"kcal": 155.0,
+"p": 12.6,
+"c": 1.1,
+"f": 10.6,
+"servingG": 50,
+"servingLabel": "1 huevo grande",
+"fdc": 173424,
+"usda": "Egg, whole, cooked, hard-boiled"
+},
+{
+"id": "usda-171287",
+"name": "Huevo entero crudo",
+"kcal": 143.0,
+"p": 12.6,
+"c": 0.7,
+"f": 9.5,
+"servingG": null,
+"servingLabel": null,
+"fdc": 171287,
+"usda": "Egg, whole, raw, fresh"
+},
+{
+"id": "usda-172183",
+"name": "Clara de huevo cruda",
+"kcal": 52.0,
+"p": 10.9,
+"c": 0.7,
+"f": 0.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 172183,
+"usda": "Egg, white, raw, fresh"
+},
+{
+"id": "usda-174032",
+"name": "Carne molida de res 85/15, a la plancha",
+"kcal": 250.0,
+"p": 25.9,
+"c": 0.0,
+"f": 15.4,
+"servingG": 77,
+"servingLabel": "1 hamburguesa (¼ lb crudo)",
+"fdc": 174032,
+"usda": "Beef, ground, 85% lean meat / 15% fat, patty, cooked, broiled"
+},
+{
+"id": "usda-170638",
+"name": "Bistec de res (round), cocido",
+"kcal": 209.0,
+"p": 35.6,
+"c": 0.0,
+"f": 6.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170638,
+"usda": "Beef, round, top round, separable lean and fat, trimmed to 0\" fat, all grades, cooked, bra"
+},
+{
+"id": "usda-167821",
+"name": "Lomo de cerdo asado",
+"kcal": 248.0,
+"p": 27.1,
+"c": 0.0,
+"f": 14.7,
+"servingG": null,
+"servingLabel": null,
+"fdc": 167821,
+"usda": "Pork, fresh, loin, whole, separable lean and fat, cooked, roasted"
+},
+{
+"id": "usda-173709",
+"name": "Atún en agua, escurrido",
+"kcal": 86.0,
+"p": 19.4,
+"c": 0.0,
+"f": 1.0,
+"servingG": 165,
+"servingLabel": "1 lata",
+"fdc": 173709,
+"usda": "Fish, tuna, light, canned in water, drained solids (Includes foods for USDA's Food Distrib"
+},
+{
+"id": "usda-175177",
+"name": "Tilapia cocida",
+"kcal": 128.0,
+"p": 26.1,
+"c": 0.0,
+"f": 2.6,
+"servingG": null,
+"servingLabel": null,
+"fdc": 175177,
+"usda": "Fish, tilapia, cooked, dry heat"
+},
+{
+"id": "usda-175180",
+"name": "Camarón cocido",
+"kcal": 99.0,
+"p": 24.0,
+"c": 0.2,
+"f": 0.3,
+"servingG": 85,
+"servingLabel": "85 g (3 oz)",
+"fdc": 175180,
+"usda": "Crustaceans, shrimp, cooked"
+},
+{
+"id": "usda-175168",
+"name": "Salmón del Atlántico cocido",
+"kcal": 206.0,
+"p": 22.1,
+"c": 0.0,
+"f": 12.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 175168,
+"usda": "Fish, salmon, Atlantic, farmed, cooked, dry heat"
+},
+{
+"id": "usda-175140",
+"name": "Sardina en salsa de tomate",
+"kcal": 185.0,
+"p": 20.9,
+"c": 0.5,
+"f": 10.4,
+"servingG": null,
+"servingLabel": null,
+"fdc": 175140,
+"usda": "Fish, sardine, Pacific, canned in tomato sauce, drained solids with bone"
+},
+{
+"id": "usda-173859",
+"name": "Chorizo de cerdo (crudo)",
+"kcal": 296.0,
+"p": 13.6,
+"c": 3.8,
+"f": 25.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 173859,
+"usda": "Sausage, pork, chorizo, link or ground, raw"
+},
+{
+"id": "usda-171265",
+"name": "Leche entera",
+"kcal": 61.0,
+"p": 3.1,
+"c": 4.8,
+"f": 3.2,
+"servingG": 244,
+"servingLabel": "1 taza",
+"fdc": 171265,
+"usda": "Milk, whole, 3.25% milkfat, with added vitamin D"
+},
+{
+"id": "usda-171267",
+"name": "Leche semidescremada (2 %)",
+"kcal": 50.0,
+"p": 3.3,
+"c": 4.8,
+"f": 2.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 171267,
+"usda": "Milk, reduced fat, fluid, 2% milkfat, with added vitamin A and vitamin D"
+},
+{
+"id": "usda-171269",
+"name": "Leche descremada",
+"kcal": 34.0,
+"p": 3.4,
+"c": 5.0,
+"f": 0.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 171269,
+"usda": "Milk, nonfat, fluid, with added vitamin A and vitamin D (fat free or skim)"
+},
+{
+"id": "usda-171284",
+"name": "Yogur natural entero",
+"kcal": 61.0,
+"p": 3.5,
+"c": 4.7,
+"f": 3.2,
+"servingG": 170,
+"servingLabel": "1 envase",
+"fdc": 171284,
+"usda": "Yogurt, plain, whole milk"
+},
+{
+"id": "usda-171304",
+"name": "Yogur griego natural entero",
+"kcal": 97.0,
+"p": 9.0,
+"c": 4.0,
+"f": 5.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 171304,
+"usda": "Yogurt, Greek, plain, whole milk"
+},
+{
+"id": "usda-170886",
+"name": "Yogur natural bajo en grasa",
+"kcal": 63.0,
+"p": 5.2,
+"c": 7.0,
+"f": 1.6,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170886,
+"usda": "Yogurt, plain, low fat"
+},
+{
+"id": "usda-172223",
+"name": "Queso fresco",
+"kcal": 299.0,
+"p": 18.1,
+"c": 3.0,
+"f": 23.8,
+"servingG": 122,
+"servingLabel": "1 taza desmenuzado",
+"fdc": 172223,
+"usda": "Cheese, fresh, queso fresco"
+},
+{
+"id": "usda-170898",
+"name": "Queso cotija",
+"kcal": 366.0,
+"p": 20.0,
+"c": 4.0,
+"f": 30.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170898,
+"usda": "Cheese, mexican, queso cotija"
+},
+{
+"id": "usda-172201",
+"name": "Queso añejo",
+"kcal": 373.0,
+"p": 21.4,
+"c": 4.6,
+"f": 30.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 172201,
+"usda": "Cheese, mexican, queso anejo"
+},
+{
+"id": "usda-170844",
+"name": "Queso Monterrey",
+"kcal": 373.0,
+"p": 24.5,
+"c": 0.7,
+"f": 30.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170844,
+"usda": "Cheese, monterey"
+},
+{
+"id": "usda-172179",
+"name": "Queso cottage",
+"kcal": 98.0,
+"p": 11.1,
+"c": 3.4,
+"f": 4.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 172179,
+"usda": "Cheese, cottage, creamed, large or small curd"
+},
+{
+"id": "usda-171288",
+"name": "Mezcla de quesos estilo mexicano",
+"kcal": 384.0,
+"p": 23.5,
+"c": 0.1,
+"f": 32.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 171288,
+"usda": "Cheese, Mexican blend"
+},
+{
+"id": "usda-171257",
+"name": "Crema ácida",
+"kcal": 198.0,
+"p": 2.4,
+"c": 4.6,
+"f": 19.4,
+"servingG": 12,
+"servingLabel": "1 cucharada",
+"fdc": 171257,
+"usda": "Cream, sour, cultured"
+},
+{
+"id": "usda-170859",
+"name": "Crema para batir",
+"kcal": 340.0,
+"p": 2.8,
+"c": 2.8,
+"f": 36.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170859,
+"usda": "Cream, fluid, heavy whipping"
+},
+{
+"id": "usda-173410",
+"name": "Mantequilla con sal",
+"kcal": 717.0,
+"p": 0.8,
+"c": 0.1,
+"f": 81.1,
+"servingG": 14,
+"servingLabel": "1 cucharada",
+"fdc": 173410,
+"usda": "Butter, salted"
+},
+{
+"id": "usda-171413",
+"name": "Aceite de oliva",
+"kcal": 884.0,
+"p": 0.0,
+"c": 0.0,
+"f": 100.0,
+"servingG": 13.5,
+"servingLabel": "1 cucharada",
+"fdc": 171413,
+"usda": "Oil, olive, salad or cooking"
+},
+{
+"id": "usda-171029",
+"name": "Aceite de maíz",
+"kcal": 900.0,
+"p": 0.0,
+"c": 0.0,
+"f": 100.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 171029,
+"usda": "Oil, corn, industrial and retail, all purpose salad or cooking"
+},
+{
+"id": "usda-171705",
+"name": "Aguacate",
+"kcal": 160.0,
+"p": 2.0,
+"c": 8.5,
+"f": 14.7,
+"servingG": 50,
+"servingLabel": "⅓ de aguacate",
+"fdc": 171705,
+"usda": "Avocados, raw, all commercial varieties"
+},
+{
+"id": "usda-170567",
+"name": "Almendras",
+"kcal": 579.0,
+"p": 21.1,
+"c": 21.6,
+"f": 49.9,
+"servingG": 28,
+"servingLabel": "1 onza",
+"fdc": 170567,
+"usda": "Nuts, almonds"
+},
+{
+"id": "usda-170187",
+"name": "Nueces",
+"kcal": 654.0,
+"p": 15.2,
+"c": 13.7,
+"f": 65.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170187,
+"usda": "Nuts, walnuts, english"
+},
+{
+"id": "usda-172430",
+"name": "Cacahuate crudo",
+"kcal": 567.0,
+"p": 25.8,
+"c": 16.1,
+"f": 49.2,
+"servingG": 28,
+"servingLabel": "1 onza",
+"fdc": 172430,
+"usda": "Peanuts, all types, raw"
+},
+{
+"id": "usda-174266",
+"name": "Crema de cacahuate",
+"kcal": 598.0,
+"p": 22.2,
+"c": 22.3,
+"f": 51.4,
+"servingG": 32,
+"servingLabel": "2 cucharadas",
+"fdc": 174266,
+"usda": "Peanut butter, smooth style, with salt (Includes foods for USDA's Food Distribution Progra"
+},
+{
+"id": "usda-170554",
+"name": "Semillas de chía",
+"kcal": 486.0,
+"p": 16.5,
+"c": 42.1,
+"f": 30.7,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170554,
+"usda": "Seeds, chia seeds, dried"
+},
+{
+"id": "usda-170273",
+"name": "Chocolate amargo (70–85 % cacao)",
+"kcal": 598.0,
+"p": 7.8,
+"c": 45.9,
+"f": 42.6,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170273,
+"usda": "Chocolate, dark, 70-85% cacao solids"
+},
+{
+"id": "usda-169640",
+"name": "Miel de abeja",
+"kcal": 304.0,
+"p": 0.3,
+"c": 82.4,
+"f": 0.0,
+"servingG": 21,
+"servingLabel": "1 cucharada",
+"fdc": 169640,
+"usda": "Honey"
+},
+{
+"id": "usda-169655",
+"name": "Azúcar",
+"kcal": 387.0,
+"p": 0.0,
+"c": 100.0,
+"f": 0.0,
+"servingG": 4.2,
+"servingLabel": "1 cucharadita",
+"fdc": 169655,
+"usda": "Sugars, granulated"
+},
+{
+"id": "usda-171688",
+"name": "Manzana con cáscara",
+"kcal": 52.0,
+"p": 0.3,
+"c": 13.8,
+"f": 0.2,
+"servingG": 182,
+"servingLabel": "1 mediana",
+"fdc": 171688,
+"usda": "Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)"
+},
+{
+"id": "usda-173944",
+"name": "Plátano",
+"kcal": 89.0,
+"p": 1.1,
+"c": 22.8,
+"f": 0.3,
+"servingG": 118,
+"servingLabel": "1 mediano",
+"fdc": 173944,
+"usda": "Bananas, raw"
+},
+{
+"id": "usda-169097",
+"name": "Naranja",
+"kcal": 47.0,
+"p": 0.9,
+"c": 11.8,
+"f": 0.1,
+"servingG": 131,
+"servingLabel": "1 fruta",
+"fdc": 169097,
+"usda": "Oranges, raw, all commercial varieties"
+},
+{
+"id": "usda-169910",
+"name": "Mango",
+"kcal": 60.0,
+"p": 0.8,
+"c": 15.0,
+"f": 0.4,
+"servingG": 165,
+"servingLabel": "1 taza picado",
+"fdc": 169910,
+"usda": "Mangos, raw"
+},
+{
+"id": "usda-169926",
+"name": "Papaya",
+"kcal": 43.0,
+"p": 0.5,
+"c": 10.8,
+"f": 0.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169926,
+"usda": "Papayas, raw"
+},
+{
+"id": "usda-167765",
+"name": "Sandía",
+"kcal": 30.0,
+"p": 0.6,
+"c": 7.5,
+"f": 0.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 167765,
+"usda": "Watermelon, raw"
+},
+{
+"id": "usda-169092",
+"name": "Melón",
+"kcal": 34.0,
+"p": 0.8,
+"c": 8.2,
+"f": 0.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169092,
+"usda": "Melons, cantaloupe, raw"
+},
+{
+"id": "usda-167762",
+"name": "Fresa",
+"kcal": 32.0,
+"p": 0.7,
+"c": 7.7,
+"f": 0.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 167762,
+"usda": "Strawberries, raw"
+},
+{
+"id": "usda-174683",
+"name": "Uva",
+"kcal": 69.0,
+"p": 0.7,
+"c": 18.1,
+"f": 0.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 174683,
+"usda": "Grapes, red or green (European type, such as Thompson seedless), raw"
+},
+{
+"id": "usda-169124",
+"name": "Piña",
+"kcal": 50.0,
+"p": 0.5,
+"c": 13.1,
+"f": 0.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169124,
+"usda": "Pineapple, raw, all varieties"
+},
+{
+"id": "usda-168155",
+"name": "Limón (lima ácida)",
+"kcal": 30.0,
+"p": 0.7,
+"c": 10.5,
+"f": 0.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 168155,
+"usda": "Limes, raw"
+},
+{
+"id": "usda-173044",
+"name": "Guayaba",
+"kcal": 68.0,
+"p": 2.5,
+"c": 14.3,
+"f": 0.9,
+"servingG": null,
+"servingLabel": null,
+"fdc": 173044,
+"usda": "Guavas, common, raw"
+},
+{
+"id": "usda-169118",
+"name": "Pera",
+"kcal": 57.0,
+"p": 0.4,
+"c": 15.2,
+"f": 0.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169118,
+"usda": "Pears, raw"
+},
+{
+"id": "usda-169928",
+"name": "Durazno",
+"kcal": 39.0,
+"p": 0.9,
+"c": 9.5,
+"f": 0.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169928,
+"usda": "Peaches, yellow, raw"
+},
+{
+"id": "usda-169098",
+"name": "Jugo de naranja natural",
+"kcal": 45.0,
+"p": 0.7,
+"c": 10.4,
+"f": 0.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169098,
+"usda": "Orange juice, raw (Includes foods for USDA's Food Distribution Program)"
+},
+{
+"id": "usda-170457",
+"name": "Jitomate",
+"kcal": 18.0,
+"p": 0.9,
+"c": 3.9,
+"f": 0.2,
+"servingG": 123,
+"servingLabel": "1 mediano",
+"fdc": 170457,
+"usda": "Tomatoes, red, ripe, raw, year round average"
+},
+{
+"id": "usda-170000",
+"name": "Cebolla",
+"kcal": 40.0,
+"p": 1.1,
+"c": 9.3,
+"f": 0.1,
+"servingG": 110,
+"servingLabel": "1 mediana",
+"fdc": 170000,
+"usda": "Onions, raw"
+},
+{
+"id": "usda-168576",
+"name": "Chile jalapeño",
+"kcal": 29.0,
+"p": 0.9,
+"c": 6.5,
+"f": 0.4,
+"servingG": 14,
+"servingLabel": "1 chile",
+"fdc": 168576,
+"usda": "Peppers, jalapeno, raw"
+},
+{
+"id": "usda-169395",
+"name": "Chile serrano",
+"kcal": 32.0,
+"p": 1.7,
+"c": 6.7,
+"f": 0.4,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169395,
+"usda": "Peppers, serrano, raw"
+},
+{
+"id": "usda-168571",
+"name": "Nopal crudo",
+"kcal": 16.0,
+"p": 1.3,
+"c": 3.3,
+"f": 0.1,
+"servingG": 86,
+"servingLabel": "1 taza rebanado",
+"fdc": 168571,
+"usda": "Nopales, raw"
+},
+{
+"id": "usda-169388",
+"name": "Nopal cocido (sin sal)",
+"kcal": 15.0,
+"p": 1.4,
+"c": 3.3,
+"f": 0.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169388,
+"usda": "Nopales, cooked, without salt"
+},
+{
+"id": "usda-169291",
+"name": "Calabacita",
+"kcal": 17.0,
+"p": 1.2,
+"c": 3.1,
+"f": 0.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169291,
+"usda": "Squash, summer, zucchini, includes skin, raw"
+},
+{
+"id": "usda-170393",
+"name": "Zanahoria",
+"kcal": 41.0,
+"p": 0.9,
+"c": 9.6,
+"f": 0.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170393,
+"usda": "Carrots, raw"
+},
+{
+"id": "usda-169247",
+"name": "Lechuga romana",
+"kcal": 17.0,
+"p": 1.2,
+"c": 3.3,
+"f": 0.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169247,
+"usda": "Lettuce, cos or romaine, raw"
+},
+{
+"id": "usda-168409",
+"name": "Pepino con cáscara",
+"kcal": 15.0,
+"p": 0.7,
+"c": 3.6,
+"f": 0.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 168409,
+"usda": "Cucumber, with peel, raw"
+},
+{
+"id": "usda-168462",
+"name": "Espinaca cruda",
+"kcal": 23.0,
+"p": 2.9,
+"c": 3.6,
+"f": 0.4,
+"servingG": null,
+"servingLabel": null,
+"fdc": 168462,
+"usda": "Spinach, raw"
+},
+{
+"id": "usda-170379",
+"name": "Brócoli crudo",
+"kcal": 34.0,
+"p": 2.8,
+"c": 6.6,
+"f": 0.4,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170379,
+"usda": "Broccoli, raw"
+},
+{
+"id": "usda-170402",
+"name": "Chayote crudo",
+"kcal": 19.0,
+"p": 0.8,
+"c": 4.5,
+"f": 0.1,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170402,
+"usda": "Chayote, fruit, raw"
+},
+{
+"id": "usda-169997",
+"name": "Cilantro",
+"kcal": 23.0,
+"p": 2.1,
+"c": 3.7,
+"f": 0.5,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169997,
+"usda": "Coriander (cilantro) leaves, raw"
+},
+{
+"id": "usda-169230",
+"name": "Ajo",
+"kcal": 149.0,
+"p": 6.4,
+"c": 33.1,
+"f": 0.5,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169230,
+"usda": "Garlic, raw"
+},
+{
+"id": "usda-169251",
+"name": "Champiñón",
+"kcal": 22.0,
+"p": 3.1,
+"c": 3.3,
+"f": 0.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 169251,
+"usda": "Mushrooms, white, raw"
+},
+{
+"id": "usda-170108",
+"name": "Pimiento morrón rojo",
+"kcal": 26.0,
+"p": 1.0,
+"c": 6.0,
+"f": 0.3,
+"servingG": null,
+"servingLabel": null,
+"fdc": 170108,
+"usda": "Peppers, sweet, red, raw"
+},
+{
+"id": "usda-168566",
+"name": "Tomate verde",
+"kcal": 32.0,
+"p": 1.0,
+"c": 5.8,
+"f": 1.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 168566,
+"usda": "Tomatillos, raw"
+},
+{
+"id": "usda-174852",
+"name": "Refresco de cola",
+"kcal": 42.0,
+"p": 0.0,
+"c": 10.4,
+"f": 0.2,
+"servingG": 370,
+"servingLabel": "1 lata de 355 ml",
+"fdc": 174852,
+"usda": "Beverages, carbonated, cola, regular"
+},
+{
+"id": "usda-171890",
+"name": "Café negro",
+"kcal": 1.0,
+"p": 0.1,
+"c": 0.0,
+"f": 0.0,
+"servingG": null,
+"servingLabel": null,
+"fdc": 171890,
+"usda": "Beverages, coffee, brewed, prepared with tap water"
+},
+{
+"id": "usda-174524",
+"name": "Salsa roja lista para servir",
+"kcal": 29.0,
+"p": 1.5,
+"c": 6.6,
+"f": 0.2,
+"servingG": null,
+"servingLabel": null,
+"fdc": 174524,
+"usda": "Sauce, salsa, ready-to-serve"
+}
+];
+
 /* ===== APP-CORE: estado, ayudantes de interfaz, plan de metas ===== */
 const MEALS = ['breakfast', 'lunch', 'dinner', 'snack'];
 const MEAL_LABEL = { breakfast: 'Desayuno', lunch: 'Comida', dinner: 'Cena', snack: 'Colación' };
@@ -529,7 +1749,7 @@ const STALE_WEIGHT_DAYS = 14, STALE_BF_DAYS = 90;
 const S = {
   backend: null, mode: 'local', pending: 0, profile: null, days: {}, foods: {}, targets: [],
   loaded: { profile: false, days: false, foods: false, targets: false },
-  tab: 'today', date: todayIso(), caps: { sample: null, downloads: null },
+  tab: 'today', date: todayIso(), caps: { sample: null, downloads: null, images: false }, seedBusy: false,
   range: { preset: '90', start: null, end: null }, tdeeWindow: 14, showArchived: false, foodFilter: 'all',
 };
 
@@ -638,11 +1858,13 @@ function updateSync() {
   el.dataset.state = st;
   el.textContent = st === 'saving' ? 'Guardando…' : st === 'cloud' ? 'Guardado en tu cuenta' : 'Solo en este navegador';
 }
-const isEmptyDay = (d) => !isNum(d.weight) && !isNum(d.bf) && !isNum(d.waist) && !isNum(d.neck) && !isNum(d.hip) && !d.note && !(d.entries && d.entries.length) && typeof d.forced !== 'boolean';
+const isEmptyDay = (d) => !isNum(d.weight) && !isNum(d.bf) && !isNum(d.waist) && !isNum(d.neck) && !isNum(d.hip) && !d.note && !(d.entries && d.entries.length) && typeof d.forced !== 'boolean' && !(d.water > 0) && !(d.exercise && d.exercise.length);
 function saveDay(iso, mutate) {
   const doc = clone(S.days[iso] || { date: iso });
   mutate(doc);
   for (const k of ['weight', 'bf', 'waist', 'neck', 'hip', 'note', 'bfSource', 'forced']) if (doc[k] == null || doc[k] === '') delete doc[k];
+  if (!(doc.water > 0)) delete doc.water;
+  if (!doc.exercise || !doc.exercise.length) delete doc.exercise;
   if (!isNum(doc.bf)) delete doc.bfSource;
   const empty = isEmptyDay(doc);
   if (empty) delete S.days[iso]; else S.days[iso] = doc;
@@ -738,11 +1960,204 @@ const MACRO_FLAG_TEXT = {
   minimums_exceed_kcal: 'Los mínimos de proteína y grasa no caben en esta meta calórica: carbohidratos = 0. Revisa el ritmo o el rango de proteína.',
 };
 
+/* ===== IA (texto/foto/etiqueta), AGUA y EJERCICIO ===== */
+const SOURCE_TAG = { recipe: 'receta', ai: 'estimado por IA', off: 'OFF', usda: 'USDA', label: 'etiqueta' };
+
+function aiErrorNote(e) {
+  switch (e && e.code) {
+    case 'cancelled': return null;
+    case 'not_granted': return 'No diste permiso para que esta página use Claude. Puedes capturar los valores a mano.';
+    case 'rate_limited': return 'Demasiadas consultas seguidas o llegaste a tu límite de uso. Intenta más tarde.';
+    case 'invalid_json': return 'No pude entender la respuesta. Prueba describiendo con más detalle (cantidades y preparación).';
+    case 'image_rejected': return 'No pude usar esa imagen. Prueba con otra foto.';
+    case 'images_unavailable': return 'Esta vista no puede enviar fotos.';
+    case 'session_expired': return 'Tu sesión expiró; vuelve a abrir la página.';
+    default: return 'No pude obtener una estimación ahora. Intenta de nuevo o captura los valores a mano.';
+  }
+}
+/** Pregunta a Claude pidiendo JSON. Cada llamada es deliberada, así que no usa la caché. */
+function askAi(prompt, blob, ctl) {
+  const o = { modelTier: 'default', cache: false, signal: ctl.signal };
+  if (blob) o.images = blob;
+  return S.caps.sample.json(prompt, o);
+}
+
+/** Selector de foto: cámara o galería, con vista previa. */
+function photoPicker() {
+  const st = { blob: null, url: null };
+  const cam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true, 'aria-label': 'Tomar foto' });
+  const gal = h('input', { type: 'file', accept: 'image/*', hidden: true, 'aria-label': 'Elegir foto de la galería' });
+  const prev = h('div');
+  const clear = () => { if (st.url) URL.revokeObjectURL(st.url); st.blob = null; st.url = null; prev.replaceChildren(); cam.value = ''; gal.value = ''; };
+  const set = (file) => {
+    clear(); if (!file) return;
+    st.blob = file; st.url = URL.createObjectURL(file);
+    prev.replaceChildren(h('img', { src: st.url, alt: 'Foto seleccionada', style: 'max-width:100%;max-height:220px;border-radius:10px;object-fit:contain;align-self:flex-start' }),
+      h('button', { class: 'btn ghost sm', type: 'button', onclick: clear }, 'Quitar foto'));
+  };
+  cam.addEventListener('change', () => set(cam.files[0])); gal.addEventListener('change', () => set(gal.files[0]));
+  const el = h('div', { style: 'display:flex;flex-direction:column;gap:8px' },
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: () => cam.click() }, 'Tomar foto'), h('button', { class: 'btn', type: 'button', onclick: () => gal.click() }, 'Elegir de la galería')), cam, gal, prev);
+  return { el, clear, get blob() { return st.blob; } };
+}
+
+const AI_MEAL_PROMPT = (text, hasPhoto) => `COMIDA. Eres un asistente de nutrición. Estima las calorías y macros de lo que comió una persona en México${hasPhoto ? ', usando la foto' : ''}${text ? ' y esta descripción: «' + text + '»' : ''}.
+Reglas:
+- Separa en renglones por alimento o preparación (máximo 12). Incluye aparte aceites, salsas, tortillas, crema y bebidas si se ven o se mencionan.
+- "grams" es el peso total del renglón tal como se comió (gramos o mililitros), no por 100 g.
+- Si no se indican cantidades, asume porciones típicas realistas y dilo en "note".
+- No inventes alimentos que no se mencionen ni se vean.
+- "kcal" debe ser coherente con 4×proteína + 4×carbohidratos + 9×grasa.
+- "confidence": "alta" si el alimento y la cantidad son claros, "media" si hay supuestos, "baja" si es una conjetura.
+Responde SOLO con un objeto JSON: {"items":[{"name": string, "grams": number, "kcal": number, "protein": number, "carbs": number, "fat": number, "confidence": "alta"|"media"|"baja", "note": string}]}`;
+
+const AI_LABEL_PROMPT = () => `ETIQUETA. La imagen muestra la tabla de información nutrimental de un producto (probablemente en español, de México). Lee los valores IMPRESOS; no estimes ni completes los que no veas.
+Responde SOLO con un objeto JSON: {"readable": boolean, "name": string|null, "brand": string|null, "basis": "per100g"|"per100ml"|"perServing", "servingG": number|null, "servingLabel": string|null, "kcal": number, "protein": number, "carbs": number, "fat": number, "note": string}
+- "basis" es la base de la columna que lees: por 100 g, por 100 ml o por porción. Prefiere la columna por 100 g/ml si existe.
+- "servingG": peso de la porción en gramos (o ml) si está impreso.
+- "kcal": contenido energético en kcal (si solo ves kJ, divide entre 4.184). "carbs": hidratos de carbono totales. "fat": grasa total (no solo saturada).
+- Si la imagen no es una tabla nutrimental legible, responde {"readable": false} con ceros en los números.`;
+
+/** Reutiliza un alimento «ai» con el mismo nombre y valores parecidos, o crea uno nuevo. */
+function findOrCreateAiFood(item) {
+  const per100 = { kcal: (item.kcal * 100) / item.grams, p: (item.p * 100) / item.grams, c: (item.c * 100) / item.grams, f: (item.f * 100) / item.grams };
+  const key = norm(item.name);
+  const same = foodList().find((f) => f.source === 'ai' && norm(f.name) === key && Math.abs(f.kcal - per100.kcal) <= 0.1 * Math.max(per100.kcal, 1));
+  if (same) return same;
+  const food = { id: uid(), name: item.name, brand: null, kcal: per100.kcal, p: per100.p, c: per100.c, f: per100.f, servingG: Math.round(item.grams), servingLabel: '1 porción estimada', source: 'ai', archived: false, createdAt: Date.now() };
+  saveFood(food);
+  return food;
+}
+
+/* ---------- hoja: describir o fotografiar la comida ---------- */
+function aiLogSheet(iso) {
+  openSheet('Describir o fotografiar', (body, close) => {
+    if (!S.caps.sample) { body.append(notice('warn', 'Esta función necesita Claude y no está disponible en esta vista. Ábrela desde la app de Claude, o agrega el alimento a mano.')); return; }
+    const txt = h('textarea', { placeholder: 'Ej.: 2 tacos de pastor con piña y cilantro, un refresco de cola chico', rows: 3 });
+    const photo = S.caps.images ? photoPicker() : null;
+    const out = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }), msg = h('div');
+    let items = [], ctl = null;
+    const estBtn = h('button', { class: 'btn primary block', type: 'button' }, 'Estimar');
+    const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealByHour());
+
+    const draw = () => {
+      out.replaceChildren(); if (!items.length) return;
+      const total = items.reduce((s, x) => s + x.kcal, 0);
+      out.append(notice('warn', 'Estimación de una IA: las porciones y los ingredientes ocultos (aceite, azúcar, salsas) son lo que más falla, y suele quedarse corta. Corrige los gramos antes de guardar.'));
+      items.forEach((it, idx) => {
+        const g = numInput(Math.round(it.grams * 10) / 10, { step: '5', min: 0 }); g.style.maxWidth = '110px'; g.setAttribute('aria-label', 'Gramos de ' + it.name);
+        const kc = h('div', { class: 'end num' }, fmt0(it.kcal) + ' kcal');
+        g.addEventListener('input', () => { const v = num(g.value); if (v > 0) { const k = v / it.base.grams; Object.assign(it, { grams: v, kcal: it.base.kcal * k, p: it.base.p * k, c: it.base.c * k, f: it.base.f * k }); kc.textContent = fmt0(it.kcal) + ' kcal'; tot.textContent = fmt0(items.reduce((s, x) => s + x.kcal, 0)) + ' kcal en total'; } });
+        out.append(h('div', { class: 'card', style: 'background:var(--bg);gap:8px' },
+          h('div', { style: 'display:flex;justify-content:space-between;gap:8px;align-items:flex-start' }, h('div', { class: 'name', style: 'font-weight:600;overflow-wrap:anywhere' }, it.name, h('span', { class: 'tag' + (it.confidence === 'baja' ? ' warn' : '') }, 'confianza ' + it.confidence)),
+            h('button', { class: 'btn ghost sm', type: 'button', 'aria-label': 'Quitar ' + it.name, onclick: () => { items.splice(idx, 1); draw(); } }, 'Quitar')),
+          it.note ? h('div', { class: 'sub' }, it.note) : null, it.adjusted ? h('div', { class: 'sub' }, 'Ajusté las calorías para que cuadren con los macros.') : null,
+          h('div', { style: 'display:flex;gap:12px;align-items:center;justify-content:space-between' }, h('div', { style: 'display:flex;gap:6px;align-items:center' }, g, h('span', { class: 'muted' }, 'g')), kc),
+          h('div', { class: 'sub num' }, `P ${fmt1(it.p)} · C ${fmt1(it.c)} · G ${fmt1(it.f)} g`)));
+      });
+      const tot = h('div', { class: 'num', style: 'font-weight:700' }, fmt0(total) + ' kcal en total');
+      out.append(tot, field('Comida', meal), h('button', { class: 'btn primary block', type: 'button', onclick: () => {
+        if (!items.length) return;
+        const entries = items.map((it) => { const f = findOrCreateAiFood({ name: it.name, grams: it.grams, kcal: it.kcal, p: it.p, c: it.c, f: it.f });
+          return { id: uid(), meal: meal.value, foodId: f.id, name: f.name, brand: null, grams: it.grams, kcal: it.kcal, p: it.p, c: it.c, f: it.f, at: Date.now(), est: true }; });
+        saveDay(iso, (d) => { d.entries = (d.entries || []).concat(entries); });
+        photo && photo.clear(); close(); toast(`Agregado${entries.length > 1 ? 's' : ''}: ${entries.length} renglón${entries.length > 1 ? 'es' : ''} estimado${entries.length > 1 ? 's' : ''}`);
+      } }, 'Guardar en mi registro'));
+    };
+
+    estBtn.onclick = async () => {
+      const text = txt.value.trim(), blob = photo ? photo.blob : null;
+      msg.replaceChildren();
+      if (!text && !blob) { msg.append(notice('warn', 'Escribe lo que comiste o agrega una foto.')); return; }
+      ctl = new AbortController(); estBtn.disabled = true; items = []; draw();
+      estBtn.replaceChildren(h('span', { class: 'spin' }), ' Estimando…');
+      const stop = h('button', { class: 'btn ghost sm', type: 'button', onclick: () => ctl.abort() }, 'Cancelar'); msg.append(stop);
+      try {
+        const raw = await askAi(AI_MEAL_PROMPT(text, !!blob), blob, ctl);
+        items = normalizeAiItems(raw).map((x) => ({ ...x, base: { grams: x.grams, kcal: x.kcal, p: x.p, c: x.c, f: x.f } }));
+        msg.replaceChildren(); if (!items.length) msg.append(notice('warn', 'No pude sacar alimentos de eso. Prueba con una descripción más concreta o una foto más clara.'));
+        draw();
+      } catch (e) { msg.replaceChildren(); const t = aiErrorNote(e); if (t) msg.append(notice('bad', t)); }
+      finally { estBtn.disabled = false; estBtn.replaceChildren('Estimar'); }
+    };
+    body.append(h('p', { class: 'sub' }, 'Describe lo que comiste' + (photo ? ' o mándame una foto' : '') + '. Estimo calorías y macros; tú revisas y corriges antes de guardar. Para comidas que repites, es más preciso guardarlas como alimento o receta.'),
+      field('¿Qué comiste?', txt, 'Con el micrófono del teclado puedes dictarlo.'), photo ? photo.el : null, estBtn, msg, out);
+    setTimeout(() => txt.focus(), 60);
+  });
+}
+
+/* ---------- foto de etiqueta nutrimental (dentro del formulario de alimento) ---------- */
+function labelReader(fields, setSource, msg) {
+  const photo = photoPicker();
+  const btn = h('button', { class: 'btn block', type: 'button' }, 'Leer la etiqueta de la foto');
+  btn.onclick = async () => {
+    if (!photo.blob) { msg.replaceChildren(notice('warn', 'Primero toma o elige una foto de la tabla nutrimental.')); return; }
+    const ctl = new AbortController(); btn.disabled = true; btn.replaceChildren(h('span', { class: 'spin' }), ' Leyendo…'); msg.replaceChildren();
+    try {
+      const raw = await askAi(AI_LABEL_PROMPT(), photo.blob, ctl);
+      if (!raw || raw.readable === false) { msg.replaceChildren(notice('warn', 'No pude leer una tabla nutrimental en esa foto. Acércate, evita reflejos y que salga completa.')); return; }
+      const r = labelToPer100(raw);
+      if (!r.ok) { msg.replaceChildren(notice('bad', r.reason === 'no_serving' ? 'La tabla está por porción y no pude leer cuántos gramos tiene la porción. Escribe los valores a mano.' : r.reason === 'implausible' ? 'Los valores que leí no son plausibles (probablemente leí mal). Captura los valores a mano o toma otra foto.' : 'No pude leer los valores. Toma otra foto o captura a mano.')); return; }
+      const rd = (v) => Math.round(v * 10) / 10;
+      fields.k.value = rd(r.kcal); fields.p.value = rd(r.p); fields.c.value = rd(r.c); fields.f.value = rd(r.f);
+      if (r.servingG && !fields.sg.value) { fields.sg.value = Math.round(r.servingG * 10) / 10; if (r.servingLabel && !fields.sl.value) fields.sl.value = r.servingLabel; }
+      if (raw.name && !fields.nm.value.trim()) fields.nm.value = String(raw.name).slice(0, 80);
+      if (raw.brand && !fields.br.value.trim()) fields.br.value = String(raw.brand).slice(0, 60);
+      setSource('label');
+      msg.replaceChildren(notice(r.mismatch ? 'warn' : 'info', r.mismatch ? 'Leí estos valores, pero las calorías no cuadran con los macros: probablemente leí mal algún número. Compáralos con la etiqueta.' : 'Leí estos valores de la foto. Compáralos con la etiqueta antes de guardar: una lectura puede fallar.',
+        r.perMl ? ' Ojo: la tabla estaba por 100 ml; los trato como por 100 g (aproximado en líquidos).' : ''));
+    } catch (e) { const t = aiErrorNote(e); msg.replaceChildren(t ? notice('bad', t) : null); }
+    finally { btn.disabled = false; btn.replaceChildren('Leer la etiqueta de la foto'); }
+  };
+  return h('div', { class: 'card', style: 'background:var(--bg)' }, h('h3', null, 'Desde la etiqueta'), h('p', { class: 'sub' }, 'Toma una foto de la tabla nutrimental. Lee los números impresos, así que es mucho más exacto que estimar un platillo.'), photo.el, btn);
+}
+
+/* ---------- agua ---------- */
+const fmtWater = (ml) => (ml >= 1000 ? (ml / 1000).toLocaleString('es-MX', { maximumFractionDigits: 2 }) + ' L' : Math.round(ml) + ' ml');
+function waterCard(iso, day) {
+  const ml = isNum(day.water) ? day.water : 0, goal = S.profile && isNum(S.profile.waterMl) ? S.profile.waterMl : 2000;
+  const add = (d) => saveDay(iso, (x) => { x.water = Math.max(0, (isNum(x.water) ? x.water : 0) + d); });
+  return h('section', { class: 'card', 'aria-label': 'Agua' }, h('div', { class: 'card-title' }, h('h2', null, 'Agua'), h('span', { class: 'sub num' }, `${fmtWater(ml)} de ${fmtWater(goal)}`)),
+    h('div', { class: 'meter', role: 'progressbar', 'aria-valuenow': Math.round(Math.min(1, ml / goal) * 100), 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: `width:${Math.min(100, (ml / goal) * 100)}%` })),
+    h('div', { class: 'btn-row' }, [[250, '+250 ml'], [500, '+500 ml'], [1000, '+1 L']].map(([v, l]) => h('button', { class: 'btn sm', type: 'button', onclick: () => add(v) }, l)),
+      ml > 0 ? h('button', { class: 'btn ghost sm', type: 'button', 'aria-label': 'Quitar 250 ml', onclick: () => add(-250) }, '−250') : null));
+}
+
+/* ---------- ejercicio (solo registro: no se suma a la meta) ---------- */
+function exerciseCard(iso, day) {
+  const list = day.exercise || [], totalMin = list.reduce((s, e) => s + e.min, 0);
+  return h('section', { class: 'card', 'aria-label': 'Ejercicio' }, h('div', { class: 'card-title' }, h('h2', null, 'Ejercicio'), list.length ? h('span', { class: 'sub num' }, totalMin + ' min') : null),
+    list.length ? h('div', { class: 'list' }, list.map((e) => h('button', { class: 'row', type: 'button', onclick: () => exerciseSheet(iso, e.id) },
+      h('div', { class: 'main' }, h('div', { class: 'name' }, e.name), h('div', { class: 'meta num' }, `${e.min} min${isNum(e.kcal) ? ' · ' + fmt0(e.kcal) + ' kcal (tu cálculo)' : ''}`)), h('div', { class: 'end' }, '›'))))
+      : h('p', { class: 'sub' }, 'Sin ejercicio registrado este día.'),
+    h('button', { class: 'btn block', type: 'button', onclick: () => exerciseSheet(iso, null) }, '+ Registrar ejercicio'),
+    h('p', { class: 'sub' }, 'Se guarda como referencia y no se suma a tu meta de calorías: las calorías que dicen los relojes y las apps varían mucho, y «comérselas» de vuelta suele borrar el déficit.'));
+}
+function exerciseSheet(iso, id) {
+  const ex = id ? ((S.days[iso] || {}).exercise || []).find((e) => e.id === id) : null;
+  openSheet(ex ? 'Editar ejercicio' : 'Registrar ejercicio', (body, close) => {
+    const dl = h('datalist', { id: 'ex-names' }, ['Caminata', 'Correr', 'Pesas', 'Bicicleta', 'Natación', 'Fútbol', 'Yoga', 'Baile'].map((n) => h('option', { value: n })));
+    const nm = h('input', { type: 'text', value: ex ? ex.name : '', list: 'ex-names', placeholder: 'Caminata, pesas…', autocomplete: 'off' });
+    const mn = numInput(ex ? ex.min : '', { step: '5', min: 1, max: 600, placeholder: 'minutos' }), kc = numInput(ex && isNum(ex.kcal) ? ex.kcal : '', { step: '10', min: 0, max: 3000, placeholder: 'opcional' });
+    const msg = h('div');
+    body.append(field('Actividad', nm), dl, h('div', { class: 'grid2' }, field('Duración (min)', mn), field('Calorías (opcional)', kc)), msg,
+      h('div', { class: 'btn-row' }, ex ? h('button', { class: 'btn danger', type: 'button', onclick: () => { saveDay(iso, (d) => { d.exercise = (d.exercise || []).filter((e) => e.id !== id); }); close(); } }, 'Borrar') : null,
+        h('button', { class: 'btn primary', type: 'button', onclick: () => {
+          const name = nm.value.trim(), m = num(mn.value), k = num(kc.value);
+          if (!name) return msg.replaceChildren(notice('bad', 'Escribe qué hiciste.'));
+          if (!(m >= 1 && m <= 600)) return msg.replaceChildren(notice('bad', 'La duración debe estar entre 1 y 600 minutos.'));
+          if (k != null && !(k >= 0 && k <= 3000)) return msg.replaceChildren(notice('bad', 'Las calorías deben estar entre 0 y 3,000.'));
+          const rec = { id: ex ? ex.id : uid(), name, min: m, kcal: k };
+          saveDay(iso, (d) => { d.exercise = ex ? d.exercise.map((e) => (e.id === id ? rec : e)) : (d.exercise || []).concat(rec); });
+          close(); toast('Ejercicio guardado');
+        } }, 'Guardar')));
+    setTimeout(() => nm.focus(), 60);
+  });
+}
+
 /* ===== VISTA HOY ===== */
 const sumEntries = (entries) => entries.reduce((t, e) => ({ kcal: t.kcal + e.kcal, p: t.p + e.p, c: t.c + e.c, f: t.f + e.f }), { kcal: 0, p: 0, c: 0, f: 0 });
 const per = (food, grams) => ({ kcal: (food.kcal * grams) / 100, p: (food.p * grams) / 100, c: (food.c * grams) / 100, f: (food.f * grams) / 100 });
-const kcalFromMacros = (p, c, f) => 4 * p + 4 * c + 9 * f;
-const kcalMismatch = (kcal, p, c, f) => { const exp = kcalFromMacros(p, c, f); return Math.abs(kcal - exp) > Math.max(0.15 * Math.max(kcal, exp), 20); };
 function validateFood(f) {
   const errs = [];
   if (!f.name || !f.name.trim()) errs.push('El alimento necesita un nombre.');
@@ -752,7 +2167,7 @@ function validateFood(f) {
   if (f.servingG != null && !(f.servingG > 0)) errs.push('La porción debe ser mayor que 0.');
   return errs;
 }
-function foodLabel(f) { return h('span', null, f.name, f.brand ? ' (' + f.brand + ')' : '', f.source === 'recipe' ? h('span', { class: 'tag' }, 'receta') : null, f.source === 'ai' ? h('span', { class: 'tag warn' }, 'estimado por IA') : null, f.source === 'off' ? h('span', { class: 'tag' }, 'OFF') : null); }
+function foodLabel(f) { return h('span', null, f.name, f.brand ? ' (' + f.brand + ')' : '', SOURCE_TAG[f.source] ? h('span', { class: 'tag' + (f.source === 'ai' ? ' warn' : '') }, SOURCE_TAG[f.source]) : null); }
 function recentFoods(limit = 12) {
   const seen = new Set(), out = [];
   for (const k of Object.keys(S.days).sort().reverse()) {
@@ -793,6 +2208,8 @@ function viewToday() {
     card.append(h('div', { class: 'meter', role: 'progressbar', 'aria-valuenow': Math.round(pct * 100), 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: `width:${Math.min(100, pct * 100)}%` })),
       h('div', { class: 'sub' }, diff <= 0 ? `Te faltan ${fmt0(-diff)} kcal para la meta (${Math.round(pct * 100)} %).` : `Superaste la meta por ${fmt0(diff)} kcal.`));
   }
+  const estKcal = entries.filter((e) => e.est).reduce((s, e) => s + e.kcal, 0);
+  if (estKcal > 0) card.append(h('div', { class: 'sub' }, `${Math.round((estKcal / tot.kcal) * 100)} % de estas calorías son estimadas por IA (menos precisas).`));
   for (const [key, label, color, short] of MACROS) {
     const goal = target ? target[short] : null, got = tot[short];
     card.append(h('div', { class: 'macro' },
@@ -819,12 +2236,12 @@ function viewToday() {
     const es = entries.filter((e) => e.meal === meal); if (!es.length) continue;
     log.append(h('div', { class: 'meal-head', style: 'margin-top:4px' }, h('h3', null, MEAL_LABEL[meal]), h('span', { class: 'sub num' }, fmt0(sumEntries(es).kcal) + ' kcal')),
       h('div', { class: 'list' }, es.map((e) => h('button', { class: 'row', type: 'button', onclick: () => editEntrySheet(iso, e.id) },
-        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : '')), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
+        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : ''), e.est ? h('span', { class: 'tag warn' }, 'estimado') : null), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
         h('div', { class: 'end' }, fmt0(e.kcal) + ' kcal')))));
   }
   root.append(log);
 
-  root.append(bodyCard(iso, day));
+  root.append(waterCard(iso, day), exerciseCard(iso, day), bodyCard(iso, day));
   return root;
 }
 
@@ -869,7 +2286,8 @@ function addFoodSheet(iso, preset) {
   openSheet('Agregar alimento', (body, close) => {
     const q = h('input', { type: 'search', placeholder: 'Buscar: tortilla, frijoles, pechuga…', autocomplete: 'off', 'aria-label': 'Buscar alimento' });
     const results = h('div', { class: 'list' });
-    const step1 = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, q, results);
+    const aiBtn = S.caps.sample ? h('button', { class: 'btn block', type: 'button', onclick: () => { close(); aiLogSheet(iso); } }, 'Describir o fotografiar la comida (IA)') : null;
+    const step1 = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, aiBtn, q, results);
     const step2 = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
     body.append(step1, step2); step2.hidden = true;
 
@@ -942,20 +2360,21 @@ function editEntrySheet(iso, entryId) {
 function openFoodForm(existing, { name, onSaved } = {}) {
   const f0 = existing || { id: uid(), name: name || '', brand: '', kcal: null, p: null, c: null, f: null, servingG: null, servingLabel: '', source: 'custom', archived: false, createdAt: Date.now() };
   openSheet(existing ? 'Editar alimento' : 'Nuevo alimento', (body, close) => {
-    let source = f0.source === 'ai' ? 'ai' : f0.source === 'off' ? 'off' : 'custom';
+    let source = ['ai', 'off', 'usda', 'label'].includes(f0.source) ? f0.source : 'custom';
     const nm = h('input', { type: 'text', value: f0.name, placeholder: 'Tortilla de maíz (tortillería)', autocomplete: 'off' });
     const br = h('input', { type: 'text', value: f0.brand || '', placeholder: 'opcional' });
     const k = numInput(f0.kcal, { step: '0.1', min: 0, max: 900 }), p = numInput(f0.p, { step: '0.1', min: 0, max: 100 }), c = numInput(f0.c, { step: '0.1', min: 0, max: 100 }), f = numInput(f0.f, { step: '0.1', min: 0, max: 100 });
     const derive = h('input', { type: 'checkbox', id: 'derive' });
     const sg = numInput(f0.servingG, { step: '1', min: 0, placeholder: 'g (opcional)' }), sl = h('input', { type: 'text', value: f0.servingLabel || '', placeholder: '1 tortilla chica' });
     const msg = h('div'), aiBox = h('div');
-    const touched = () => { if (source === 'ai') { source = 'custom'; aiBox.replaceChildren(); } };
+    const touched = () => { if (['ai', 'usda', 'off'].includes(source)) { source = 'custom'; aiBox.replaceChildren(); } };
     [k, p, c, f].forEach((el) => el.addEventListener('input', touched));
     body.append(field('Nombre', nm), field('Marca', br),
       h('p', { class: 'sub' }, 'Valores por cada 100 g (como vienen en la etiqueta).'),
       h('div', { class: 'grid2' }, field('Calorías (kcal)', k), field('Proteína (g)', p)), h('div', { class: 'grid2' }, field('Carbohidratos (g)', c), field('Grasa (g)', f)),
       h('label', { class: 'check', for: 'derive' }, derive, h('span', null, 'Calcular las calorías a partir de los macros (4·P + 4·C + 9·G).')),
       h('div', { class: 'grid2' }, field('Porción habitual (g)', sg), field('Descripción de la porción', sl)), aiBox);
+    if (S.caps.sample && S.caps.images) body.append(labelReader({ nm, br, k, p, c, f, sg, sl }, (s) => { source = s; }, msg));
     if (S.caps.sample) {
       const btn = h('button', { class: 'btn block', type: 'button' }, 'Estimar los macros con Claude');
       btn.onclick = async () => {
@@ -984,7 +2403,7 @@ function openFoodForm(existing, { name, onSaved } = {}) {
       h('button', { class: 'btn primary', type: 'button', onclick: () => {
         const pv = num(p.value), cv = num(c.value), fv = num(f.value);
         const kv = derive.checked && pv != null && cv != null && fv != null ? Math.round(kcalFromMacros(pv, cv, fv) * 10) / 10 : num(k.value);
-        const food = { ...f0, name: nm.value.trim(), brand: br.value.trim() || null, kcal: kv, p: pv, c: cv, f: fv, servingG: num(sg.value) || null, servingLabel: sl.value.trim() || null, source: existing && existing.source === 'recipe' ? 'recipe' : source };
+        const food = { ...f0, name: nm.value.trim(), brand: br.value.trim() || null, kcal: kv, p: pv, c: cv, f: fv, servingG: num(sg.value) || null, servingLabel: sl.value.trim() || null, source: existing && existing.source === 'recipe' ? 'recipe' : source, fdc: f0.fdc || null };
         const errs = validateFood(food);
         if (errs.length) { msg.replaceChildren(notice('bad', errs.join(' '))); return; }
         const warn = kcalMismatch(food.kcal, food.p, food.c, food.f);
@@ -1101,8 +2520,9 @@ function viewFoods() {
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn primary', type: 'button', onclick: () => openFoodForm(null) }, '+ Alimento'),
       h('button', { class: 'btn', type: 'button', onclick: () => openRecipeEditor(null) }, '+ Receta')));
+  root.append(seedCard());
   const q = h('input', { type: 'search', placeholder: 'Buscar entre tus alimentos…', autocomplete: 'off', 'aria-label': 'Buscar', value: S.foodQuery || '' });
-  const chips = h('div', { class: 'chips', role: 'group' }, [['all', 'Todos'], ['custom', 'Míos'], ['recipe', 'Recetas'], ['ai', 'Estimados por IA']].map(([v, l]) =>
+  const chips = h('div', { class: 'chips', role: 'group' }, [['all', 'Todos'], ['custom', 'Míos'], ['recipe', 'Recetas'], ['usda', 'USDA'], ['label', 'Etiqueta'], ['ai', 'Estimados por IA']].map(([v, l]) =>
     h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.foodFilter === v), onclick: () => { S.foodFilter = v; render(); } }, l)));
   const list = h('div', { class: 'list' });
   const draw = () => {
@@ -1121,8 +2541,30 @@ function viewFoods() {
   root.append(q, chips, h('section', { class: 'card' }, list));
   draw();
   root.append(h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: S.showArchived, onchange: (e) => { S.showArchived = e.target.checked; render(); } }), h('span', null, 'Mostrar archivados')),
-    notice('info', 'En esta versión no hay búsqueda en Open Food Facts (la página no puede salir a internet). Tus alimentos se guardan aquí, y al crear uno puedes pedirle a Claude una estimación de macros, que queda marcada como estimada.'));
+    notice('info', 'Esta página no puede salir a internet, así que no hay búsqueda en bases en línea. Para alimentos nuevos: toma una foto de la etiqueta (exacto), pídele una estimación a Claude (aproximado) o captúralos a mano.'));
   return root;
+}
+
+/* ---------- base inicial de alimentos básicos (USDA) ---------- */
+function seedCard() {
+  const missing = SEED_FOODS.filter((x) => !S.foods[x.id]);
+  if (!missing.length) return h('p', { class: 'sub' }, `Base de alimentos básicos cargada (${SEED_FOODS.length}). Fuente: USDA FoodData Central.`);
+  const prog = h('div', { class: 'sub' });
+  const btn = h('button', { class: 'btn primary block', type: 'button', disabled: S.seedBusy, onclick: async () => {
+    S.seedBusy = true; btn.disabled = true;
+    const ok = await write(async () => {
+      for (let i = 0; i < missing.length; i++) {
+        const x = missing[i];
+        const food = { id: x.id, name: x.name, brand: null, kcal: x.kcal, p: x.p, c: x.c, f: x.f, servingG: x.servingG, servingLabel: x.servingLabel, source: 'usda', fdc: x.fdc, archived: false, createdAt: Date.now() };
+        await S.backend.put('foods', food.id, food); S.foods[food.id] = food;
+        prog.textContent = `Guardando ${i + 1} de ${missing.length}…`;
+        if (i % 15 === 14) await new Promise((r) => setTimeout(r, 50));
+      }
+    });
+    S.seedBusy = false; render(); if (ok) toast(`${missing.length} alimentos agregados`);
+  } }, `Agregar ${missing.length} alimentos básicos`);
+  return h('section', { class: 'card' }, h('h3', null, 'Alimentos básicos'),
+    h('p', { class: 'sub' }, `${SEED_FOODS.length} alimentos comunes (tortilla, frijol, pollo, huevo, queso fresco, frutas, verduras…) con valores por 100 g y porciones típicas. Fuente: USDA FoodData Central (SR Legacy), cada uno con su número de registro. Son valores genéricos: tu marca o tu receta pueden diferir. Lo que edites no se sobrescribe.`), prog, btn);
 }
 
 /* ===== VISTA METAS: perfil, meta por fórmula y adaptación ===== */
@@ -1144,6 +2586,7 @@ function viewGoals() {
   const pMin = numInput(p ? p.pMin : 1.6, { step: '0.1', min: 0.5, max: 4 }), pMax = numInput(p ? p.pMax : 2.2, { step: '0.1', min: 0.5, max: 4 });
   const fatMin = numInput(p ? p.fatMin : 0.6, { step: '0.1', min: 0, max: 2 }), fatPct = numInput(p ? Math.round(p.fatPct * 100) : 25, { step: '1', min: 0, max: 60 });
   const minK = numInput(p ? p.minValidKcal : CFG.defaultMinValidKcal, { step: '50', min: 0 });
+  const waterIn = numInput(p && isNum(p.waterMl) ? p.waterMl : 2000, { step: '250', min: 500, max: 6000 });
   const mif = h('input', { type: 'checkbox', id: 'mif', checked: !!(p && p.mifflinOnly) });
   const msg = h('div');
   const form = h('details', { class: 'card', open: !p ? true : null }, h('summary', null, p ? 'Editar mi perfil' : 'Mi perfil'),
@@ -1156,11 +2599,12 @@ function viewGoals() {
       h('div', { style: 'display:flex;flex-direction:column;gap:12px;padding-top:6px' },
         h('div', { class: 'grid2' }, field('Proteína mín. (g/kg)', pMin), field('Proteína máx. (g/kg)', pMax)),
         h('div', { class: 'grid2' }, field('Grasa mínima (g/kg)', fatMin), field('Grasa objetivo (% de las kcal)', fatPct, 'La grasa será el mayor entre este % y el mínimo por kg; el resto son carbohidratos.')),
+        field('Meta de agua (ml/día)', waterIn, 'Solo una referencia tuya para la barra de agua.'),
         field('Calorías mínimas para contar un día', minK, 'Un día con menos calorías registradas se considera incompleto y no entra al promedio que estima tu gasto.'),
         h('label', { class: 'check', for: 'mif' }, mif, h('span', null, 'Usar siempre Mifflin-St Jeor (ignorar mi % de grasa en el cálculo). Útil si ese % es solo una estimación.')))),
     msg, h('button', { class: 'btn primary block', type: 'button', onclick: () => {
       const fail = (t) => msg.replaceChildren(notice('bad', t));
-      const ht = num(height.value), wv = num(weight.value), bfv = num(bf.value), rt = num(rate.value) ?? 0, lo = num(pMin.value), hi = num(pMax.value), fm = num(fatMin.value), fp = num(fatPct.value), mk = num(minK.value);
+      const ht = num(height.value), wv = num(weight.value), bfv = num(bf.value), rt = num(rate.value) ?? 0, lo = num(pMin.value), hi = num(pMax.value), fm = num(fatMin.value), fp = num(fatPct.value), mk = num(minK.value), wm = num(waterIn.value);
       if (!birth.value) return fail('Falta tu fecha de nacimiento.');
       const age = ageOn(birth.value, today); if (age < 14 || age > 100) return fail('Revisa la fecha de nacimiento (la edad debe estar entre 14 y 100 años).');
       if (!(ht >= 120 && ht <= 230)) return fail('La estatura debe estar entre 120 y 230 cm.');
@@ -1171,7 +2615,7 @@ function viewGoals() {
       if (!(lo > 0 && hi >= lo)) return fail('La proteína máxima no puede ser menor que la mínima.');
       if (fm == null || fm < 0 || fp == null || fp < 0 || fp >= 100 || mk == null || mk < 0) return fail('Revisa las opciones avanzadas: hay valores vacíos o fuera de rango.');
       const hadTarget = S.targets.length > 0;
-      saveProfile({ sex: sexV.v, birth: birth.value, heightCm: ht, activity: activity.value, goal: goalSel.value, rate: goalSel.value === 'maintain' ? 0 : rt, pMin: lo, pMax: hi, fatMin: fm, fatPct: fp / 100, minValidKcal: mk, mifflinOnly: mif.checked });
+      saveProfile({ sex: sexV.v, birth: birth.value, heightCm: ht, activity: activity.value, goal: goalSel.value, rate: goalSel.value === 'maintain' ? 0 : rt, pMin: lo, pMax: hi, fatMin: fm, fatPct: fp / 100, minValidKcal: mk, mifflinOnly: mif.checked, waterMl: wm >= 500 && wm <= 6000 ? wm : 2000 });
       if (wv != null || bfv != null) saveDay(today, (d) => { if (wv != null) d.weight = wv; if (bfv != null) { d.bf = bfv; d.bfSource = bfSrc.value; } });
       if (!hadTarget) { const pl = buildPlan(); if (pl) { saveTarget(pl, pl.calories.kcal, 'formula', 'Meta inicial por fórmula'); toast('Perfil guardado y meta inicial creada.'); return; } }
       toast('Perfil guardado.');
@@ -1220,6 +2664,9 @@ function viewGoals() {
     h('div', { class: 'chips' }, [14, 21, 28, 42].map((w) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.tdeeWindow === w), onclick: () => { S.tdeeWindow = w; render(); } }, String(w)))),
     h('div', { class: 'hint' }, 'Ventanas largas dan más precisión pero menos actualidad. El día en curso no cuenta porque suele estar incompleto.')));
   const st = adaptiveStatus(plan, S.tdeeWindow), d = st.data;
+  const share = estimatedShare(S.days, st.windowStart, st.windowEnd);
+  if (share > 0.3) ad.append(notice('warn', `${Math.round(share * 100)} % de las calorías de esta ventana son estimaciones de IA. Esas entradas suelen quedarse cortas, y eso hace que el gasto «por datos» salga más bajo que el real. Interpreta el resultado con cuidado.`));
+  else if (share > 0) ad.append(h('p', { class: 'sub' }, `${Math.round(share * 100)} % de las calorías de esta ventana son estimaciones de IA.`));
   ad.append(h('div', { class: 'kpis' },
     h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Gasto por fórmula'), h('div', { class: 'v num' }, fmt0(plan.tdee) + ' kcal')),
     h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Gasto por datos'), h('div', { class: 'v num' }, d.ok ? fmt0(d.tdee) + ' kcal' : 'Sin datos'),
@@ -1362,7 +2809,7 @@ function viewProgress() {
 }
 
 /* ===== VISTA DATOS: exportar/importar CSV (mismo formato que la versión de escritorio) ===== */
-const CSV_TABLES = ['profile', 'body_log', 'foods', 'recipes', 'recipe_items', 'food_log', 'day_status', 'targets'];
+const CSV_TABLES = ['profile', 'body_log', 'foods', 'recipes', 'recipe_items', 'food_log', 'day_status', 'targets', 'water_log', 'exercise_log'];   // las dos últimas solo existen en esta versión
 const csvEsc = (v) => { if (v == null) return ''; const s = String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const toCsv = (cols, rows) => '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => csvEsc(r[c])).join(','))].join('\n') + '\n';
 const isoTs = (ms) => (ms ? new Date(ms).toISOString().replace(/\.\d+Z$/, '+00:00') : '');
@@ -1386,23 +2833,25 @@ function parseCsv(text) {
 
 function exportTables() {
   const out = {}, p = S.profile, dayKeys = Object.keys(S.days).sort();
-  out.profile = toCsv(['sex', 'birth_date', 'height_cm', 'activity_level', 'goal', 'rate_kg_week', 'protein_g_kg_min', 'protein_g_kg_max', 'fat_g_kg_min', 'fat_pct_kcal', 'bmr_method_pref', 'min_valid_day_kcal', 'updated_at'],
-    p ? [{ sex: p.sex, birth_date: p.birth, height_cm: p.heightCm, activity_level: p.activity, goal: p.goal, rate_kg_week: p.rate, protein_g_kg_min: p.pMin, protein_g_kg_max: p.pMax, fat_g_kg_min: p.fatMin, fat_pct_kcal: p.fatPct, bmr_method_pref: p.mifflinOnly ? 'mifflin' : 'auto', min_valid_day_kcal: p.minValidKcal, updated_at: new Date().toISOString() }] : []);
+  out.profile = toCsv(['sex', 'birth_date', 'height_cm', 'activity_level', 'goal', 'rate_kg_week', 'protein_g_kg_min', 'protein_g_kg_max', 'fat_g_kg_min', 'fat_pct_kcal', 'bmr_method_pref', 'min_valid_day_kcal', 'water_goal_ml', 'updated_at'],
+    p ? [{ sex: p.sex, birth_date: p.birth, height_cm: p.heightCm, activity_level: p.activity, goal: p.goal, rate_kg_week: p.rate, protein_g_kg_min: p.pMin, protein_g_kg_max: p.pMax, fat_g_kg_min: p.fatMin, fat_pct_kcal: p.fatPct, bmr_method_pref: p.mifflinOnly ? 'mifflin' : 'auto', min_valid_day_kcal: p.minValidKcal, water_goal_ml: p.waterMl, updated_at: new Date().toISOString() }] : []);
   out.body_log = toCsv(['date', 'weight_kg', 'body_fat_pct', 'body_fat_source', 'waist_cm', 'neck_cm', 'hip_cm', 'note'],
     dayKeys.filter((k) => { const d = S.days[k]; return isNum(d.weight) || isNum(d.bf) || isNum(d.waist) || isNum(d.neck) || isNum(d.hip) || d.note; })
       .map((k) => { const d = S.days[k]; return { date: k, weight_kg: d.weight, body_fat_pct: d.bf, body_fat_source: d.bfSource, waist_cm: d.waist, neck_cm: d.neck, hip_cm: d.hip, note: d.note }; }));
   const foods = foodList().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   out.foods = toCsv(['uid', 'name', 'brand', 'source', 'barcode', 'kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g', 'serving_g', 'serving_label', 'data_flag', 'archived', 'off_fetched_at', 'created_at'],
-    foods.map((f) => ({ uid: f.id, name: f.name, brand: f.brand, source: f.source === 'ai' ? 'custom' : f.source, barcode: f.barcode, kcal_100g: f.kcal, protein_100g: f.p, carbs_100g: f.c, fat_100g: f.f,
-      serving_g: f.servingG, serving_label: f.servingLabel, data_flag: f.source === 'ai' ? 'ai_estimate' : null, archived: f.archived ? 1 : 0, off_fetched_at: null, created_at: isoTs(f.createdAt) })));
+    foods.map((f) => ({ uid: f.id, name: f.name, brand: f.brand, source: ['ai', 'usda', 'label'].includes(f.source) ? 'custom' : f.source, barcode: f.barcode, kcal_100g: f.kcal, protein_100g: f.p, carbs_100g: f.c, fat_100g: f.f,
+      serving_g: f.servingG, serving_label: f.servingLabel, data_flag: f.source === 'ai' ? 'ai_estimate' : f.source === 'usda' ? 'usda:' + (f.fdc || '') : f.source === 'label' ? 'label_photo' : null, archived: f.archived ? 1 : 0, off_fetched_at: null, created_at: isoTs(f.createdAt) })));
   const recipes = foods.filter((f) => f.recipe);
   out.recipes = toCsv(['food_uid', 'total_yield_g', 'servings'], recipes.map((f) => ({ food_uid: f.id, total_yield_g: f.recipe.yieldG, servings: f.recipe.servings })));
   out.recipe_items = toCsv(['recipe_uid', 'ingredient_uid', 'grams'], recipes.flatMap((f) => f.recipe.items.map((i) => ({ recipe_uid: f.id, ingredient_uid: i.foodId, grams: i.grams }))));
-  out.food_log = toCsv(['uid', 'date', 'meal', 'food_uid', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'created_at'],
-    dayKeys.flatMap((k) => (S.days[k].entries || []).map((e) => ({ uid: e.id, date: k, meal: e.meal, food_uid: e.foodId, grams: e.grams, kcal: e.kcal, protein_g: e.p, carbs_g: e.c, fat_g: e.f, created_at: isoTs(e.at) }))));
+  out.food_log = toCsv(['uid', 'date', 'meal', 'food_uid', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'created_at', 'estimated'],
+    dayKeys.flatMap((k) => (S.days[k].entries || []).map((e) => ({ uid: e.id, date: k, meal: e.meal, food_uid: e.foodId, grams: e.grams, kcal: e.kcal, protein_g: e.p, carbs_g: e.c, fat_g: e.f, created_at: isoTs(e.at), estimated: e.est ? 1 : 0 }))));
   out.day_status = toCsv(['date', 'food_complete'], dayKeys.filter((k) => typeof S.days[k].forced === 'boolean').map((k) => ({ date: k, food_complete: S.days[k].forced ? 1 : 0 })));
   out.targets = toCsv(['effective_from', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'tdee_source', 'bmr_method', 'note'],
     sortedTargets().map((t) => ({ effective_from: t.from, kcal: t.kcal, protein_g: t.p, carbs_g: t.c, fat_g: t.f, tdee_source: t.source, bmr_method: t.bmrMethod, note: t.note })));
+  out.water_log = toCsv(['date', 'ml'], dayKeys.filter((k) => S.days[k].water > 0).map((k) => ({ date: k, ml: S.days[k].water })));
+  out.exercise_log = toCsv(['uid', 'date', 'name', 'minutes', 'kcal'], dayKeys.flatMap((k) => (S.days[k].exercise || []).map((e) => ({ uid: e.id, date: k, name: e.name, minutes: e.min, kcal: e.kcal }))));
   return out;
 }
 
@@ -1429,7 +2878,7 @@ function planImport(files) {
     const r = rowCtx('profile', 0);
     const o = { sex: r.pick('sex', ['M', 'F']), birth: r.date('birth_date'), heightCm: r.n('height_cm', { req: true, min: 0, exMin: true, max: 260 }), activity: r.pick('activity_level', Object.keys(ACTIVITY_FACTORS)), goal: r.pick('goal', ['maintain', 'gain', 'lose']),
       rate: r.n('rate_kg_week', { min: 0 }) ?? 0, pMin: r.n('protein_g_kg_min', { min: 0, exMin: true }) ?? 1.6, pMax: r.n('protein_g_kg_max', { min: 0, exMin: true }) ?? 2.2, fatMin: r.n('fat_g_kg_min', { min: 0 }) ?? 0.6,
-      fatPct: r.n('fat_pct_kcal', { min: 0, max: 0.99 }) ?? 0.25, mifflinOnly: r.txt('bmr_method_pref') === 'mifflin', minValidKcal: r.n('min_valid_day_kcal', { min: 0 }) ?? 1000 };
+      fatPct: r.n('fat_pct_kcal', { min: 0, max: 0.99 }) ?? 0.25, mifflinOnly: r.txt('bmr_method_pref') === 'mifflin', minValidKcal: r.n('min_valid_day_kcal', { min: 0 }) ?? 1000, waterMl: r.n('water_goal_ml', { min: 500, max: 6000 }) ?? 2000 };
     if (o.pMax < o.pMin) errors.push("profile.csv fila 2, columna 'protein_g_kg_max': debe ser ≥ protein_g_kg_min");
     plan.profile = o;
   }
@@ -1443,7 +2892,7 @@ function planImport(files) {
   if (need('foods', ['uid', 'name', 'kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g'])) T.foods.rows.forEach((_, i) => {
     const r = rowCtx('foods', i), id = r.txt('uid', true), name = r.txt('name', true), srcRaw = r.pick('source', ['custom', 'off', 'recipe'], false) || 'custom';
     const food = { id, name, brand: r.txt('brand'), kcal: r.n('kcal_100g', { req: true, min: 0, max: 900 }), p: r.n('protein_100g', { req: true, min: 0, max: 100 }), c: r.n('carbs_100g', { req: true, min: 0, max: 100 }), f: r.n('fat_100g', { req: true, min: 0, max: 100 }),
-      servingG: r.n('serving_g', { min: 0, exMin: true }), servingLabel: r.txt('serving_label'), source: srcRaw === 'custom' && r.txt('data_flag') === 'ai_estimate' ? 'ai' : srcRaw, archived: ['1', 'true', 'True'].includes(T.foods.rows[i].archived), createdAt: Date.parse(r.txt('created_at') || '') || Date.now() };
+      servingG: r.n('serving_g', { min: 0, exMin: true }), servingLabel: r.txt('serving_label'), source: srcRaw === 'custom' ? (r.txt('data_flag') === 'ai_estimate' ? 'ai' : /^usda:/.test(r.txt('data_flag') || '') ? 'usda' : r.txt('data_flag') === 'label_photo' ? 'label' : 'custom') : srcRaw, fdc: /^usda:\d+$/.test(r.txt('data_flag') || '') ? Number(r.txt('data_flag').slice(5)) : null, archived: ['1', 'true', 'True'].includes(T.foods.rows[i].archived), createdAt: Date.parse(r.txt('created_at') || '') || Date.now() };
     if (id && name && isNum(food.p) && isNum(food.c) && isNum(food.f) && food.p + food.c + food.f > 100.5) errors.push(`foods.csv fila ${i + 2}: proteína + carbohidratos + grasa suman más de 100 g por 100 g`);
     if (id) plan.foods[id] = food;
   });
@@ -1464,9 +2913,11 @@ function planImport(files) {
     const r = rowCtx('food_log', i), id = r.txt('uid', true), d = r.date('date'), meal = r.pick('meal', MEALS), fid = r.txt('food_uid', true), g = r.n('grams', { req: true, min: 0, exMin: true });
     const m = ['kcal', 'protein_g', 'carbs_g', 'fat_g'].map((c) => r.n(c, { req: true, min: 0 }));
     if (fid && !foodOf(fid)) errors.push(`food_log.csv fila ${i + 2}, columna 'food_uid': el alimento '${fid}' no existe`);
-    if (id && d && meal && fid && foodOf(fid) && g && m.every(isNum)) { const f = foodOf(fid); patch(d).entries.push({ id, meal, foodId: fid, name: f.name, brand: f.brand || null, grams: g, kcal: m[0], p: m[1], c: m[2], f: m[3], at: Date.parse(r.txt('created_at') || '') || Date.now() }); }
+    if (id && d && meal && fid && foodOf(fid) && g && m.every(isNum)) { const f = foodOf(fid); patch(d).entries.push({ id, meal, foodId: fid, name: f.name, brand: f.brand || null, grams: g, kcal: m[0], p: m[1], c: m[2], f: m[3], at: Date.parse(r.txt('created_at') || '') || Date.now(), ...(['1', 'true'].includes(T.food_log.rows[i].estimated) ? { est: true } : {}) }); }
   });
   if (need('day_status', ['date', 'food_complete'])) T.day_status.rows.forEach((_, i) => { const r = rowCtx('day_status', i), d = r.date('date'), v = r.pick('food_complete', ['0', '1'], false); if (d) patch(d).forced = v == null ? null : v === '1'; });
+  if (need('water_log', ['date', 'ml'])) T.water_log.rows.forEach((_, i) => { const r = rowCtx('water_log', i), d = r.date('date'), ml = r.n('ml', { req: true, min: 0, max: 20000 }); if (d && ml != null) patch(d).water = ml; });
+  if (need('exercise_log', ['uid', 'date', 'name', 'minutes'])) T.exercise_log.rows.forEach((_, i) => { const r = rowCtx('exercise_log', i), id = r.txt('uid', true), d = r.date('date'), nm = r.txt('name', true), m = r.n('minutes', { req: true, min: 0, exMin: true, max: 1440 }), k = r.n('kcal', { min: 0, max: 5000 }); if (id && d && nm && m != null) (patch(d).exercise = patch(d).exercise || []).push({ id, name: nm, min: m, kcal: k }); });
   if (need('targets', ['effective_from', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'tdee_source'])) T.targets.rows.forEach((_, i) => {
     const r = rowCtx('targets', i), d = r.date('effective_from'), k = r.n('kcal', { req: true, min: 0, exMin: true }), m = ['protein_g', 'carbs_g', 'fat_g'].map((c) => r.n(c, { req: true, min: 0 })), s = r.pick('tdee_source', ['formula', 'data', 'manual']);
     if (d && k && s && m.every(isNum)) plan.targets.push({ from: d, kcal: k, p: m[0], c: m[1], f: m[2], source: s, bmrMethod: r.txt('bmr_method'), note: r.txt('note') });
@@ -1489,6 +2940,8 @@ async function applyImport(plan, mode, onProgress) {
     if (pt.body) for (const [k, v] of Object.entries(pt.body)) { if (v == null) delete doc[k]; else doc[k] = v; }
     if (!isNum(doc.bf)) delete doc.bfSource;
     if (pt.entries.length) { const map = new Map((doc.entries || []).map((e) => [e.id, e])); pt.entries.forEach((e) => map.set(e.id, e)); doc.entries = [...map.values()]; }
+    if (isNum(pt.water)) doc.water = pt.water;
+    if (pt.exercise && pt.exercise.length) { const em = new Map((doc.exercise || []).map((e) => [e.id, e])); pt.exercise.forEach((e) => em.set(e.id, e)); doc.exercise = [...em.values()]; }
     if ('forced' in pt) { if (pt.forced == null) delete doc.forced; else doc.forced = pt.forced; }
     if (!isEmptyDay(doc)) ops.push(() => S.backend.put('days', iso, doc));
   }
@@ -1605,7 +3058,7 @@ async function boot() {
   got('foods', (docs) => { S.foods = Object.fromEntries(docs.map((d) => [d.id, { ...d, id: d.id }])); });
   got('targets', (docs) => { S.targets = docs.map((d) => ({ ...d, from: d.from || d.id })); });
   if (window.claude && window.claude.use) {
-    window.claude.use('sample').then((s) => { S.caps.sample = s; }).catch(() => {});
+    window.claude.use('sample').then((s) => { S.caps.sample = s; if (s && s.limits) s.limits().then((l) => { S.caps.images = !!(l && l.images); }).catch(() => {}); }).catch(() => {});
     window.claude.use('downloads').then((d) => { S.caps.downloads = d; }).catch(() => {});
   }
 }

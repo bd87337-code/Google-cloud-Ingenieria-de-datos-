@@ -17,6 +17,7 @@ function viewGoals() {
   const pMin = numInput(p ? p.pMin : 1.6, { step: '0.1', min: 0.5, max: 4 }), pMax = numInput(p ? p.pMax : 2.2, { step: '0.1', min: 0.5, max: 4 });
   const fatMin = numInput(p ? p.fatMin : 0.6, { step: '0.1', min: 0, max: 2 }), fatPct = numInput(p ? Math.round(p.fatPct * 100) : 25, { step: '1', min: 0, max: 60 });
   const minK = numInput(p ? p.minValidKcal : CFG.defaultMinValidKcal, { step: '50', min: 0 });
+  const waterIn = numInput(p && isNum(p.waterMl) ? p.waterMl : 2000, { step: '250', min: 500, max: 6000 });
   const mif = h('input', { type: 'checkbox', id: 'mif', checked: !!(p && p.mifflinOnly) });
   const msg = h('div');
   const form = h('details', { class: 'card', open: !p ? true : null }, h('summary', null, p ? 'Editar mi perfil' : 'Mi perfil'),
@@ -29,11 +30,12 @@ function viewGoals() {
       h('div', { style: 'display:flex;flex-direction:column;gap:12px;padding-top:6px' },
         h('div', { class: 'grid2' }, field('Proteína mín. (g/kg)', pMin), field('Proteína máx. (g/kg)', pMax)),
         h('div', { class: 'grid2' }, field('Grasa mínima (g/kg)', fatMin), field('Grasa objetivo (% de las kcal)', fatPct, 'La grasa será el mayor entre este % y el mínimo por kg; el resto son carbohidratos.')),
+        field('Meta de agua (ml/día)', waterIn, 'Solo una referencia tuya para la barra de agua.'),
         field('Calorías mínimas para contar un día', minK, 'Un día con menos calorías registradas se considera incompleto y no entra al promedio que estima tu gasto.'),
         h('label', { class: 'check', for: 'mif' }, mif, h('span', null, 'Usar siempre Mifflin-St Jeor (ignorar mi % de grasa en el cálculo). Útil si ese % es solo una estimación.')))),
     msg, h('button', { class: 'btn primary block', type: 'button', onclick: () => {
       const fail = (t) => msg.replaceChildren(notice('bad', t));
-      const ht = num(height.value), wv = num(weight.value), bfv = num(bf.value), rt = num(rate.value) ?? 0, lo = num(pMin.value), hi = num(pMax.value), fm = num(fatMin.value), fp = num(fatPct.value), mk = num(minK.value);
+      const ht = num(height.value), wv = num(weight.value), bfv = num(bf.value), rt = num(rate.value) ?? 0, lo = num(pMin.value), hi = num(pMax.value), fm = num(fatMin.value), fp = num(fatPct.value), mk = num(minK.value), wm = num(waterIn.value);
       if (!birth.value) return fail('Falta tu fecha de nacimiento.');
       const age = ageOn(birth.value, today); if (age < 14 || age > 100) return fail('Revisa la fecha de nacimiento (la edad debe estar entre 14 y 100 años).');
       if (!(ht >= 120 && ht <= 230)) return fail('La estatura debe estar entre 120 y 230 cm.');
@@ -44,7 +46,7 @@ function viewGoals() {
       if (!(lo > 0 && hi >= lo)) return fail('La proteína máxima no puede ser menor que la mínima.');
       if (fm == null || fm < 0 || fp == null || fp < 0 || fp >= 100 || mk == null || mk < 0) return fail('Revisa las opciones avanzadas: hay valores vacíos o fuera de rango.');
       const hadTarget = S.targets.length > 0;
-      saveProfile({ sex: sexV.v, birth: birth.value, heightCm: ht, activity: activity.value, goal: goalSel.value, rate: goalSel.value === 'maintain' ? 0 : rt, pMin: lo, pMax: hi, fatMin: fm, fatPct: fp / 100, minValidKcal: mk, mifflinOnly: mif.checked });
+      saveProfile({ sex: sexV.v, birth: birth.value, heightCm: ht, activity: activity.value, goal: goalSel.value, rate: goalSel.value === 'maintain' ? 0 : rt, pMin: lo, pMax: hi, fatMin: fm, fatPct: fp / 100, minValidKcal: mk, mifflinOnly: mif.checked, waterMl: wm >= 500 && wm <= 6000 ? wm : 2000 });
       if (wv != null || bfv != null) saveDay(today, (d) => { if (wv != null) d.weight = wv; if (bfv != null) { d.bf = bfv; d.bfSource = bfSrc.value; } });
       if (!hadTarget) { const pl = buildPlan(); if (pl) { saveTarget(pl, pl.calories.kcal, 'formula', 'Meta inicial por fórmula'); toast('Perfil guardado y meta inicial creada.'); return; } }
       toast('Perfil guardado.');
@@ -93,6 +95,9 @@ function viewGoals() {
     h('div', { class: 'chips' }, [14, 21, 28, 42].map((w) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(S.tdeeWindow === w), onclick: () => { S.tdeeWindow = w; render(); } }, String(w)))),
     h('div', { class: 'hint' }, 'Ventanas largas dan más precisión pero menos actualidad. El día en curso no cuenta porque suele estar incompleto.')));
   const st = adaptiveStatus(plan, S.tdeeWindow), d = st.data;
+  const share = estimatedShare(S.days, st.windowStart, st.windowEnd);
+  if (share > 0.3) ad.append(notice('warn', `${Math.round(share * 100)} % de las calorías de esta ventana son estimaciones de IA. Esas entradas suelen quedarse cortas, y eso hace que el gasto «por datos» salga más bajo que el real. Interpreta el resultado con cuidado.`));
+  else if (share > 0) ad.append(h('p', { class: 'sub' }, `${Math.round(share * 100)} % de las calorías de esta ventana son estimaciones de IA.`));
   ad.append(h('div', { class: 'kpis' },
     h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Gasto por fórmula'), h('div', { class: 'v num' }, fmt0(plan.tdee) + ' kcal')),
     h('div', { class: 'kpi' }, h('div', { class: 'l' }, 'Gasto por datos'), h('div', { class: 'v num' }, d.ok ? fmt0(d.tdee) + ' kcal' : 'Sin datos'),

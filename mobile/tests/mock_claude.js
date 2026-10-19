@@ -32,8 +32,27 @@
   }
   const db = { doc: docRef, collection: colRef };
   const user = { id: async () => 'u_test', me: async () => ({ id: 'u_test' }), isOwner: async () => true, canEdit: async () => true };
+  const sampleCalls = (window.__sampleCalls = []);
   const sample = async () => ({ text: '', truncated: false });
-  sample.json = async () => ({ kcal: 250, protein: 8, carbs: 40, fat: 5, servingG: 50, servingLabel: '1 pieza' });
+  sample.limits = async () => ({ maxPromptBytes: 262144, images: { maxCount: 1, maxInputBytes: 20e6, mediaTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] } });
+  sample.json = async (prompt, opts = {}) => {
+    sampleCalls.push({ prompt, hasImage: !!opts.images, cache: opts.cache });
+    await delay();
+    const mode = localStorage.getItem('__sampleMode') || 'ok';
+    if (mode === 'denied') throw { code: 'not_granted', message: 'x' };
+    if (prompt.startsWith('ETIQUETA')) {
+      if (mode === 'unreadable') return { readable: false };
+      return { readable: true, name: 'Galletas María', brand: 'Marca X', basis: 'perServing', servingG: 30, servingLabel: '1 porción (30 g)', kcal: 120, protein: 2, carbs: 22, fat: 2.5, note: '' };
+    }
+    if (prompt.startsWith('COMIDA')) {
+      return { items: [
+        { name: 'Taco de pastor', grams: 110, kcal: 230, protein: 12, carbs: 20, fat: 11, confidence: 'media', note: 'con piña' },
+        { name: 'Refresco de cola', grams: 355, kcal: 150, protein: 0, carbs: 38, fat: 0, confidence: 'alta', note: '' },
+        { name: 'Salsa roja', grams: 30, kcal: 500, protein: 1, carbs: 3, fat: 0, confidence: 'baja', note: 'kcal exageradas' },
+        { name: 'Inválido', grams: 0, kcal: 10, protein: 1, carbs: 1, fat: 1 }] };
+    }
+    return { kcal: 250, protein: 8, carbs: 40, fat: 5, servingG: 50, servingLabel: '1 pieza' };
+  };
   const downloads = { save: async ({ filename, data }) => { window.__dl = { filename, data }; return { status: 'saved' }; } };
-  window.claude = { use: async (name) => ({ db, user, sample, downloads }[name] || null) };
+  window.claude = { use: async (name) => (name === 'sample' && localStorage.getItem('__nosample') ? null : { db, user, sample, downloads }[name] || null) };
 })();

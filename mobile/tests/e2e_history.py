@@ -77,7 +77,7 @@ with Session(seed=seed) as s:
     p.get_by_role("button", name="Descargar respaldo (ZIP)").click(); p.wait_for_timeout(1200)
     blob = bytes(p.evaluate("async () => Array.from(new Uint8Array(await window.__dl.data.arrayBuffer()))"))
     names = zipfile.ZipFile(io.BytesIO(blob)).namelist()
-    check(set(names) == {"manifest.json", *[f"{t}.csv" for t in io_csv.TABLES]}, "el ZIP trae las 8 tablas + manifest")
+    check(set(names) == {"manifest.json", *[f"{t}.csv" for t in io_csv.TABLES], "water_log.csv", "exercise_log.csv"}, "el ZIP trae las 8 tablas compatibles con escritorio + agua y ejercicio + manifest")
     other = Repository(connect(":memory:")); rep = io_csv.import_zip(other, blob, "replace")
     check(rep.counts["food_log"] == repo.conn.execute("select count(*) from food_log").fetchone()[0], f"entradas de comida importadas en Python: {rep.counts['food_log']}")
     a, b = repo.daily_totals()["kcal"], other.daily_totals()["kcal"]

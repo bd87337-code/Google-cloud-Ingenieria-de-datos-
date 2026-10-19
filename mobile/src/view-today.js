@@ -1,8 +1,6 @@
 /* ===== VISTA HOY ===== */
 const sumEntries = (entries) => entries.reduce((t, e) => ({ kcal: t.kcal + e.kcal, p: t.p + e.p, c: t.c + e.c, f: t.f + e.f }), { kcal: 0, p: 0, c: 0, f: 0 });
 const per = (food, grams) => ({ kcal: (food.kcal * grams) / 100, p: (food.p * grams) / 100, c: (food.c * grams) / 100, f: (food.f * grams) / 100 });
-const kcalFromMacros = (p, c, f) => 4 * p + 4 * c + 9 * f;
-const kcalMismatch = (kcal, p, c, f) => { const exp = kcalFromMacros(p, c, f); return Math.abs(kcal - exp) > Math.max(0.15 * Math.max(kcal, exp), 20); };
 function validateFood(f) {
   const errs = [];
   if (!f.name || !f.name.trim()) errs.push('El alimento necesita un nombre.');
@@ -12,7 +10,7 @@ function validateFood(f) {
   if (f.servingG != null && !(f.servingG > 0)) errs.push('La porción debe ser mayor que 0.');
   return errs;
 }
-function foodLabel(f) { return h('span', null, f.name, f.brand ? ' (' + f.brand + ')' : '', f.source === 'recipe' ? h('span', { class: 'tag' }, 'receta') : null, f.source === 'ai' ? h('span', { class: 'tag warn' }, 'estimado por IA') : null, f.source === 'off' ? h('span', { class: 'tag' }, 'OFF') : null); }
+function foodLabel(f) { return h('span', null, f.name, f.brand ? ' (' + f.brand + ')' : '', SOURCE_TAG[f.source] ? h('span', { class: 'tag' + (f.source === 'ai' ? ' warn' : '') }, SOURCE_TAG[f.source]) : null); }
 function recentFoods(limit = 12) {
   const seen = new Set(), out = [];
   for (const k of Object.keys(S.days).sort().reverse()) {
@@ -53,6 +51,8 @@ function viewToday() {
     card.append(h('div', { class: 'meter', role: 'progressbar', 'aria-valuenow': Math.round(pct * 100), 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: `width:${Math.min(100, pct * 100)}%` })),
       h('div', { class: 'sub' }, diff <= 0 ? `Te faltan ${fmt0(-diff)} kcal para la meta (${Math.round(pct * 100)} %).` : `Superaste la meta por ${fmt0(diff)} kcal.`));
   }
+  const estKcal = entries.filter((e) => e.est).reduce((s, e) => s + e.kcal, 0);
+  if (estKcal > 0) card.append(h('div', { class: 'sub' }, `${Math.round((estKcal / tot.kcal) * 100)} % de estas calorías son estimadas por IA (menos precisas).`));
   for (const [key, label, color, short] of MACROS) {
     const goal = target ? target[short] : null, got = tot[short];
     card.append(h('div', { class: 'macro' },
@@ -79,12 +79,12 @@ function viewToday() {
     const es = entries.filter((e) => e.meal === meal); if (!es.length) continue;
     log.append(h('div', { class: 'meal-head', style: 'margin-top:4px' }, h('h3', null, MEAL_LABEL[meal]), h('span', { class: 'sub num' }, fmt0(sumEntries(es).kcal) + ' kcal')),
       h('div', { class: 'list' }, es.map((e) => h('button', { class: 'row', type: 'button', onclick: () => editEntrySheet(iso, e.id) },
-        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : '')), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
+        h('div', { class: 'main' }, h('div', { class: 'name' }, e.name + (e.brand ? ' (' + e.brand + ')' : ''), e.est ? h('span', { class: 'tag warn' }, 'estimado') : null), h('div', { class: 'meta num' }, `${fmt0(e.grams)} g · P ${fmt1(e.p)} · C ${fmt1(e.c)} · G ${fmt1(e.f)}`)),
         h('div', { class: 'end' }, fmt0(e.kcal) + ' kcal')))));
   }
   root.append(log);
 
-  root.append(bodyCard(iso, day));
+  root.append(waterCard(iso, day), exerciseCard(iso, day), bodyCard(iso, day));
   return root;
 }
 
@@ -129,7 +129,8 @@ function addFoodSheet(iso, preset) {
   openSheet('Agregar alimento', (body, close) => {
     const q = h('input', { type: 'search', placeholder: 'Buscar: tortilla, frijoles, pechuga…', autocomplete: 'off', 'aria-label': 'Buscar alimento' });
     const results = h('div', { class: 'list' });
-    const step1 = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, q, results);
+    const aiBtn = S.caps.sample ? h('button', { class: 'btn block', type: 'button', onclick: () => { close(); aiLogSheet(iso); } }, 'Describir o fotografiar la comida (IA)') : null;
+    const step1 = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, aiBtn, q, results);
     const step2 = h('div', { style: 'display:flex;flex-direction:column;gap:14px' });
     body.append(step1, step2); step2.hidden = true;
 
@@ -202,20 +203,21 @@ function editEntrySheet(iso, entryId) {
 function openFoodForm(existing, { name, onSaved } = {}) {
   const f0 = existing || { id: uid(), name: name || '', brand: '', kcal: null, p: null, c: null, f: null, servingG: null, servingLabel: '', source: 'custom', archived: false, createdAt: Date.now() };
   openSheet(existing ? 'Editar alimento' : 'Nuevo alimento', (body, close) => {
-    let source = f0.source === 'ai' ? 'ai' : f0.source === 'off' ? 'off' : 'custom';
+    let source = ['ai', 'off', 'usda', 'label'].includes(f0.source) ? f0.source : 'custom';
     const nm = h('input', { type: 'text', value: f0.name, placeholder: 'Tortilla de maíz (tortillería)', autocomplete: 'off' });
     const br = h('input', { type: 'text', value: f0.brand || '', placeholder: 'opcional' });
     const k = numInput(f0.kcal, { step: '0.1', min: 0, max: 900 }), p = numInput(f0.p, { step: '0.1', min: 0, max: 100 }), c = numInput(f0.c, { step: '0.1', min: 0, max: 100 }), f = numInput(f0.f, { step: '0.1', min: 0, max: 100 });
     const derive = h('input', { type: 'checkbox', id: 'derive' });
     const sg = numInput(f0.servingG, { step: '1', min: 0, placeholder: 'g (opcional)' }), sl = h('input', { type: 'text', value: f0.servingLabel || '', placeholder: '1 tortilla chica' });
     const msg = h('div'), aiBox = h('div');
-    const touched = () => { if (source === 'ai') { source = 'custom'; aiBox.replaceChildren(); } };
+    const touched = () => { if (['ai', 'usda', 'off'].includes(source)) { source = 'custom'; aiBox.replaceChildren(); } };
     [k, p, c, f].forEach((el) => el.addEventListener('input', touched));
     body.append(field('Nombre', nm), field('Marca', br),
       h('p', { class: 'sub' }, 'Valores por cada 100 g (como vienen en la etiqueta).'),
       h('div', { class: 'grid2' }, field('Calorías (kcal)', k), field('Proteína (g)', p)), h('div', { class: 'grid2' }, field('Carbohidratos (g)', c), field('Grasa (g)', f)),
       h('label', { class: 'check', for: 'derive' }, derive, h('span', null, 'Calcular las calorías a partir de los macros (4·P + 4·C + 9·G).')),
       h('div', { class: 'grid2' }, field('Porción habitual (g)', sg), field('Descripción de la porción', sl)), aiBox);
+    if (S.caps.sample && S.caps.images) body.append(labelReader({ nm, br, k, p, c, f, sg, sl }, (s) => { source = s; }, msg));
     if (S.caps.sample) {
       const btn = h('button', { class: 'btn block', type: 'button' }, 'Estimar los macros con Claude');
       btn.onclick = async () => {
@@ -244,7 +246,7 @@ function openFoodForm(existing, { name, onSaved } = {}) {
       h('button', { class: 'btn primary', type: 'button', onclick: () => {
         const pv = num(p.value), cv = num(c.value), fv = num(f.value);
         const kv = derive.checked && pv != null && cv != null && fv != null ? Math.round(kcalFromMacros(pv, cv, fv) * 10) / 10 : num(k.value);
-        const food = { ...f0, name: nm.value.trim(), brand: br.value.trim() || null, kcal: kv, p: pv, c: cv, f: fv, servingG: num(sg.value) || null, servingLabel: sl.value.trim() || null, source: existing && existing.source === 'recipe' ? 'recipe' : source };
+        const food = { ...f0, name: nm.value.trim(), brand: br.value.trim() || null, kcal: kv, p: pv, c: cv, f: fv, servingG: num(sg.value) || null, servingLabel: sl.value.trim() || null, source: existing && existing.source === 'recipe' ? 'recipe' : source, fdc: f0.fdc || null };
         const errs = validateFood(food);
         if (errs.length) { msg.replaceChildren(notice('bad', errs.join(' '))); return; }
         const warn = kcalMismatch(food.kcal, food.p, food.c, food.f);
