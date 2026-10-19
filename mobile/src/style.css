@@ -82,8 +82,10 @@ main { max-width: 640px; margin-inline: auto; padding-block: 8px 150px; display:
 .btn[disabled] { opacity: .5; cursor: default; }
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .btn-row > .btn { flex: 1 1 140px; }
-.fab { position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 15; min-height: 52px; padding: 0 22px; border-radius: 26px;
-  box-shadow: 0 6px 20px rgba(10, 16, 18, .28); }
+.fabs { position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 15; display: flex; gap: 10px; }
+.fabs .btn { min-height: 52px; padding: 0 22px; border-radius: 26px; box-shadow: 0 6px 20px rgba(10, 16, 18, .28); }
+.btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.big-total { font: 700 34px/1 var(--font-display); letter-spacing: -.02em; }
 
 /* ---- formularios ---- */
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -162,4 +164,4 @@ th { color: var(--muted); font-weight: 600; }
 @keyframes sp { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2s; } .meter > i { transition: none; } }
 
-.fab.away { display: none; }
+.fabs.away { display: none; }

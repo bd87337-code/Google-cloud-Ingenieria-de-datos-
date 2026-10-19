@@ -36,7 +36,7 @@ function photoPicker() {
   cam.addEventListener('change', () => set(cam.files[0])); gal.addEventListener('change', () => set(gal.files[0]));
   const el = h('div', { style: 'display:flex;flex-direction:column;gap:8px' },
     h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: () => cam.click() }, 'Tomar foto'), h('button', { class: 'btn', type: 'button', onclick: () => gal.click() }, 'Elegir de la galería')), cam, gal, prev);
-  return { el, clear, get blob() { return st.blob; } };
+  return { el, clear, set, get blob() { return st.blob; } };
 }
 
 const AI_MEAL_PROMPT = (text, hasPhoto) => `COMIDA. Eres un asistente de nutrición. Estima las calorías y macros de lo que comió una persona en México${hasPhoto ? ', usando la foto' : ''}${text ? ' y esta descripción: «' + text + '»' : ''}.
@@ -44,6 +44,7 @@ Reglas:
 - Separa en renglones por alimento o preparación (máximo 12). Incluye aparte aceites, salsas, tortillas, crema y bebidas si se ven o se mencionan.
 - "grams" es el peso total del renglón tal como se comió (gramos o mililitros), no por 100 g.
 - Si no se indican cantidades, asume porciones típicas realistas y dilo en "note".
+- Si ves un objeto de referencia (plato, tortilla, cuchara, lata, mano), úsalo para estimar el tamaño de las porciones.
 - No inventes alimentos que no se mencionen ni se vean.
 - "kcal" debe ser coherente con 4×proteína + 4×carbohidratos + 9×grasa.
 - "confidence": "alta" si el alimento y la cantidad son claros, "media" si hay supuestos, "baja" si es una conjetura.
@@ -67,25 +68,47 @@ function findOrCreateAiFood(item) {
   return food;
 }
 
-/* ---------- hoja: describir o fotografiar la comida ---------- */
-function aiLogSheet(iso) {
-  openSheet('Describir o fotografiar', (body, close) => {
+/* ---------- toma rápida: un toque en «Foto», dispara, y la estimación empieza sola ---------- */
+function quickPhoto(iso) {
+  if (!S.caps.sample) { addFoodSheet(iso); return; }
+  if (!S.caps.images) { aiLogSheet(iso); return; }
+  const inp = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  document.body.append(inp);
+  inp.addEventListener('change', () => { const f = inp.files[0]; inp.remove(); if (f) aiLogSheet(iso, { photo: f, auto: true }); });
+  inp.addEventListener('cancel', () => inp.remove());
+  inp.click();   // dentro del gesto del toque: abre la cámara
+}
+
+/* ---------- hoja: estimar la comida por foto o texto ---------- */
+function aiLogSheet(iso, opts = {}) {
+  openSheet('Estimar comida', (body, close) => {
     if (!S.caps.sample) { body.append(notice('warn', 'Esta función necesita Claude y no está disponible en esta vista. Ábrela desde la app de Claude, o agrega el alimento a mano.')); return; }
-    const txt = h('textarea', { placeholder: 'Ej.: 2 tacos de pastor con piña y cilantro, un refresco de cola chico', rows: 3 });
+    const txt = h('textarea', { placeholder: 'Opcional: agrega un detalle. Ej.: con 2 cucharadas de aceite, sin tortilla…', rows: 2 });
     const photo = S.caps.images ? photoPicker() : null;
     const out = h('div', { style: 'display:flex;flex-direction:column;gap:12px' }), msg = h('div');
     let items = [], ctl = null;
-    const estBtn = h('button', { class: 'btn primary block', type: 'button' }, 'Estimar');
+    const estBtn = h('button', { class: 'btn block', type: 'button' }, 'Estimar');
     const meal = select(MEALS.map((m) => [m, MEAL_LABEL[m]]), mealByHour());
+    const totEl = h('div', { class: 'big-total num' }), macEl = h('div', { class: 'sub num' });
+    const upd = () => { const t = sumEntries(items.map((x) => ({ kcal: x.kcal, p: x.p, c: x.c, f: x.f }))); totEl.textContent = '≈ ' + fmt0(t.kcal) + ' kcal'; macEl.textContent = `Proteína ${fmt0(t.p)} g · Carbohidratos ${fmt0(t.c)} g · Grasa ${fmt0(t.f)} g`; };
 
     const draw = () => {
       out.replaceChildren(); if (!items.length) return;
-      const total = items.reduce((s, x) => s + x.kcal, 0);
-      out.append(notice('warn', 'Estimación de una IA: las porciones y los ingredientes ocultos (aceite, azúcar, salsas) son lo que más falla, y suele quedarse corta. Corrige los gramos antes de guardar.'));
+      upd();
+      out.append(h('div', { class: 'card', style: 'background:var(--bg)' }, totEl, macEl,
+        h('div', { class: 'grid2', style: 'align-items:end' }, field('Comida', meal),
+          h('button', { class: 'btn primary', type: 'button', onclick: () => {
+            if (!items.length) return;
+            const entries = items.map((it) => { const f = findOrCreateAiFood({ name: it.name, grams: it.grams, kcal: it.kcal, p: it.p, c: it.c, f: it.f });
+              return { id: uid(), meal: meal.value, foodId: f.id, name: f.name, brand: null, grams: it.grams, kcal: it.kcal, p: it.p, c: it.c, f: it.f, at: Date.now(), est: true }; });
+            saveDay(iso, (d) => { d.entries = (d.entries || []).concat(entries); });
+            photo && photo.clear(); close(); toast(`Guardado: ≈ ${fmt0(entries.reduce((s, e) => s + e.kcal, 0))} kcal estimadas`);
+          } }, 'Guardar'))),
+        notice('warn', 'Es una estimación de IA. Lo que más falla son las porciones y lo que no se ve (aceite, azúcar, salsas), y suele quedarse corta. Si algo no cuadra con lo que comiste, corrige los gramos.'));
       items.forEach((it, idx) => {
         const g = numInput(Math.round(it.grams * 10) / 10, { step: '5', min: 0 }); g.style.maxWidth = '110px'; g.setAttribute('aria-label', 'Gramos de ' + it.name);
         const kc = h('div', { class: 'end num' }, fmt0(it.kcal) + ' kcal');
-        g.addEventListener('input', () => { const v = num(g.value); if (v > 0) { const k = v / it.base.grams; Object.assign(it, { grams: v, kcal: it.base.kcal * k, p: it.base.p * k, c: it.base.c * k, f: it.base.f * k }); kc.textContent = fmt0(it.kcal) + ' kcal'; tot.textContent = fmt0(items.reduce((s, x) => s + x.kcal, 0)) + ' kcal en total'; } });
+        g.addEventListener('input', () => { const v = num(g.value); if (v > 0) { const k = v / it.base.grams; Object.assign(it, { grams: v, kcal: it.base.kcal * k, p: it.base.p * k, c: it.base.c * k, f: it.base.f * k }); kc.textContent = fmt0(it.kcal) + ' kcal'; upd(); } });
         out.append(h('div', { class: 'card', style: 'background:var(--bg);gap:8px' },
           h('div', { style: 'display:flex;justify-content:space-between;gap:8px;align-items:flex-start' }, h('div', { class: 'name', style: 'font-weight:600;overflow-wrap:anywhere' }, it.name, h('span', { class: 'tag' + (it.confidence === 'baja' ? ' warn' : '') }, 'confianza ' + it.confidence)),
             h('button', { class: 'btn ghost sm', type: 'button', 'aria-label': 'Quitar ' + it.name, onclick: () => { items.splice(idx, 1); draw(); } }, 'Quitar')),
@@ -93,34 +116,27 @@ function aiLogSheet(iso) {
           h('div', { style: 'display:flex;gap:12px;align-items:center;justify-content:space-between' }, h('div', { style: 'display:flex;gap:6px;align-items:center' }, g, h('span', { class: 'muted' }, 'g')), kc),
           h('div', { class: 'sub num' }, `P ${fmt1(it.p)} · C ${fmt1(it.c)} · G ${fmt1(it.f)} g`)));
       });
-      const tot = h('div', { class: 'num', style: 'font-weight:700' }, fmt0(total) + ' kcal en total');
-      out.append(tot, field('Comida', meal), h('button', { class: 'btn primary block', type: 'button', onclick: () => {
-        if (!items.length) return;
-        const entries = items.map((it) => { const f = findOrCreateAiFood({ name: it.name, grams: it.grams, kcal: it.kcal, p: it.p, c: it.c, f: it.f });
-          return { id: uid(), meal: meal.value, foodId: f.id, name: f.name, brand: null, grams: it.grams, kcal: it.kcal, p: it.p, c: it.c, f: it.f, at: Date.now(), est: true }; });
-        saveDay(iso, (d) => { d.entries = (d.entries || []).concat(entries); });
-        photo && photo.clear(); close(); toast(`Agregado${entries.length > 1 ? 's' : ''}: ${entries.length} renglón${entries.length > 1 ? 'es' : ''} estimado${entries.length > 1 ? 's' : ''}`);
-      } }, 'Guardar en mi registro'));
     };
 
-    estBtn.onclick = async () => {
+    const run = async () => {
       const text = txt.value.trim(), blob = photo ? photo.blob : null;
       msg.replaceChildren();
-      if (!text && !blob) { msg.append(notice('warn', 'Escribe lo que comiste o agrega una foto.')); return; }
+      if (!text && !blob) { msg.append(notice('warn', 'Toma una foto o escribe lo que comiste.')); return; }
       ctl = new AbortController(); estBtn.disabled = true; items = []; draw();
       estBtn.replaceChildren(h('span', { class: 'spin' }), ' Estimando…');
-      const stop = h('button', { class: 'btn ghost sm', type: 'button', onclick: () => ctl.abort() }, 'Cancelar'); msg.append(stop);
+      msg.append(h('div', { style: 'display:flex;align-items:center;gap:10px' }, h('span', { class: 'spin' }), h('span', null, blob ? 'Analizando tu foto…' : 'Estimando…'), h('button', { class: 'btn ghost sm', type: 'button', onclick: () => ctl.abort() }, 'Cancelar')));
       try {
         const raw = await askAi(AI_MEAL_PROMPT(text, !!blob), blob, ctl);
         items = normalizeAiItems(raw).map((x) => ({ ...x, base: { grams: x.grams, kcal: x.kcal, p: x.p, c: x.c, f: x.f } }));
-        msg.replaceChildren(); if (!items.length) msg.append(notice('warn', 'No pude sacar alimentos de eso. Prueba con una descripción más concreta o una foto más clara.'));
-        draw();
-      } catch (e) { msg.replaceChildren(); const t = aiErrorNote(e); if (t) msg.append(notice('bad', t)); }
-      finally { estBtn.disabled = false; estBtn.replaceChildren('Estimar'); }
+        msg.replaceChildren(); if (!items.length) msg.append(notice('warn', 'No pude sacar alimentos de eso. Prueba con una foto más clara o describe lo que comiste.'));
+        draw(); if (items.length) estBtn.replaceChildren('Estimar de nuevo');
+      } catch (e) { msg.replaceChildren(); const t = aiErrorNote(e); if (t) msg.append(notice('bad', t)); estBtn.replaceChildren('Estimar'); }
+      finally { estBtn.disabled = false; }
     };
-    body.append(h('p', { class: 'sub' }, 'Describe lo que comiste' + (photo ? ' o mándame una foto' : '') + '. Estimo calorías y macros; tú revisas y corriges antes de guardar. Para comidas que repites, es más preciso guardarlas como alimento o receta.'),
-      field('¿Qué comiste?', txt, 'Con el micrófono del teclado puedes dictarlo.'), photo ? photo.el : null, estBtn, msg, out);
-    setTimeout(() => txt.focus(), 60);
+    estBtn.onclick = run;
+    body.append(out, msg, photo ? photo.el : null, field('Detalle (opcional)', txt, 'También puedes dictarlo con el micrófono del teclado.'), estBtn);
+    if (opts.photo && photo) photo.set(opts.photo);
+    if (opts.auto) setTimeout(run, 0); else setTimeout(() => (photo ? null : txt.focus()), 60);
   });
 }
 

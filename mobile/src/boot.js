@@ -14,7 +14,9 @@ function render() {
 function mountChrome() {
   const tabs = $('#tabs');
   TABS.forEach(([id, label]) => tabs.append(h('button', { class: 'tab', type: 'button', role: 'tab', 'data-tab': id, onclick: () => setTab(id) }, icon(id), h('span', null, label))));
-  $('#fab').addEventListener('click', () => addFoodSheet(S.date));
+  $('#fab-add').addEventListener('click', () => addFoodSheet(S.date));
+  $('#fab-photo').addEventListener('click', () => quickPhoto(S.date));
+  $('#fab-photo-icon').replaceWith(icon('camera'));
   // el botón flotante se oculta mientras se escribe en un campo, para no tapar el formulario
   document.addEventListener('focusin', (e) => { if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) $('#fab').classList.add('away'); });
   document.addEventListener('focusout', () => $('#fab').classList.remove('away'));

@@ -73,6 +73,7 @@ const ICONS = {
   foods: 'M12 7c-2-3-7-2-7 3 0 5 3 10 7 10s7-5 7-10c0-5-5-6-7-3zM12 7c0-2 1-3 3-4',
   goals: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
   data: 'M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6',
+  camera: 'M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
 };
 const icon = (name) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
   const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]); s.append(p); return s; };
